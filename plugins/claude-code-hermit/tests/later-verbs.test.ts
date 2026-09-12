@@ -153,6 +153,57 @@ test('chat rows are stored, listed by asking chat and returned by check', withDi
   expect(JSON.parse((await call(dir, 'check', [id])).stdout)).toMatchObject({ id, chat: 'discord:123' });
 }));
 
+test('scoped cancellation rejects other chats and malformed keys without mutation', withDir(async dir => {
+  await call(dir, 'add', ['--claim', 'A', '--due', NOW, '--origin', 'operator', '--chat', 'discord:a']);
+  const added = await call(dir, 'add', ['--claim', 'B', '--due', NOW, '--origin', 'operator', '--chat', 'discord:b']);
+  const id = added.stdout.trim().split('|')[1];
+  const before = ledger(dir);
+  for (const [chat, error] of [['discord:a', 'unknown id'], ['bad key', 'invalid-key']]) {
+    const result = await call(dir, 'cancel', [id, '--chat', chat]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(error);
+    expect(ledger(dir)).toEqual(before);
+  }
+  const valueless = await call(dir, 'cancel', [id, '--chat']);
+  expect(valueless.exitCode).toBe(1);
+  expect(valueless.stderr).toContain('invalid-key');
+  expect(ledger(dir)).toEqual(before);
+  const cancelled = await call(dir, 'cancel', [id, '--chat', 'discord:b']);
+  expect(cancelled.exitCode).toBe(0);
+  expect(cancelled.stdout.trim()).toBe(`OK|${id}|cancelled`);
+}));
+
+test('scoped check and verdict reject other chats while unscoped verdict still closes', withDir(async dir => {
+  const added = await call(dir, 'add', ['--claim', 'A', '--due', NOW, '--origin', 'operator', '--chat', 'discord:a']);
+  const id = added.stdout.trim().split('|')[1];
+  const before = ledger(dir);
+  for (const [verb, args] of [
+    ['check', [id, '--chat', 'discord:b']],
+    ['verdict', [id, 'held', '--reason-stdin', '--chat', 'discord:b']],
+  ] as const) {
+    const result = await call(dir, verb, [...args], 'review landed');
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('unknown id');
+    expect(ledger(dir)).toEqual(before);
+  }
+  expect((await call(dir, 'verdict', [id, 'held', '--reason-stdin'], 'review landed')).exitCode).toBe(0);
+  expect(ledger(dir)[0]).toMatchObject({ state: 'held', reason: 'review landed' });
+}));
+
+test('legacy rows are unknown to scoped verbs and cancellable without scope', withDir(async dir => {
+  const added = await call(dir, 'add', ['--claim', 'legacy', '--due', NOW, '--origin', 'operator']);
+  const id = added.stdout.trim().split('|')[1];
+  const before = ledger(dir);
+  for (const verb of ['cancel', 'check', 'verdict']) {
+    const args = verb === 'verdict' ? [id, 'held', '--reason-stdin'] : [id];
+    const result = await call(dir, verb, [...args, '--chat', 'discord:a'], 'review landed');
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('unknown id');
+    expect(ledger(dir)).toEqual(before);
+  }
+  expect((await call(dir, 'cancel', [id])).stdout.trim()).toBe(`OK|${id}|cancelled`);
+}));
+
 test('legacy rows without a chat still list and execute their command', withDir(async dir => {
   const file = path.join(dir, '.claude-code-hermit/state/hypotheses.jsonl');
   fs.mkdirSync(path.dirname(file), { recursive: true });

@@ -4,24 +4,26 @@
 
 ### Added
 - The hermit can check on something later from any chat, with or without a command; it looks once when due and replies in that chat.
-- Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation.
+- Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation. Helpers require Git and a non-bypass permission mode; unmet prerequisites refuse the task with no resident fallback. `bind_home_chat` enables this for the home chat; see [configuration reference](docs/config-reference.md).
+- `@<abs-path>` injection supplies a helper's required files.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
 ### Changed
 - Config permission prompts cover trust, disclosure, and tool settings in either direction; parent replacements prompt only for protected changes, with routine precheck behavior preserved.
-- Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
+- Chat control and harness commands use `!`; a `/`-prefixed chat message still invokes a matching skill.
 - Chat-scoped `/recall` with `isolate_chats` and `shared_chats`; the technical-profile home chat, maintainer chat, and terminal remain unscoped.
 - Compiled pages carry `audience`; a chat not in `shared_chats` files only to its own page, not auto-memory, and scoped `/recall` skips other chats' pages, session reports, and proposals.
 - `channels.<name>.log_chats` records or skips one channel regardless of the global switch.
-- In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
-
-### Changed
 - A hermit-wide standing role is saved, updated, or forgotten only by a primary operator (`channels.<name>.operators`, or the first allowed user when unset); other senders save roles pinned to the requesting chat. Earlier roles are left as they are, and "what do you remember" lists them.
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 - `apply-settings.ts` drops the retired `automode-seed` op, the legacy-conversion and minimal deny profiles, and the `allow` alias; `permissions-sync` and `deny standard|hardened|ask-only` are the remaining entry points.
 - A standing behavior the hermit proposes and the operator accepts is written to its owning skill or memory before the hermit confirms it, and the confirmation names where it lives; with no editable home the hermit says so instead of promising.
 
 ### Fixed
+- `/spawn-session` explicitly forbids permission-widening launch options and retries that work around a blocked helper.
+- Later follow-up cancellation and checks respect the supplied chat scope without exposing other chats' rows.
+- Saved later results can be sent again from the asking chat's recent closed rows without rechecking.
+- Same-turn helper reports and progress arriving before binding are held until the binding and its progress card are in place.
 - `conversation.ts` refuses a state dir other than this project's, so a pre-approved call cannot read another project's bot token or channel log.
 - `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
 - Docker pairing confirmation notes it may take up to 1 min before the bot replies
@@ -32,7 +34,7 @@
 
 ### Upgrade Instructions
 
-Update saved chat instructions and shortcuts to use `!pause`, `!stop`, `!resume`, `!snooze`, `!status`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), `!model`, `!effort`, `!permission-mode`, and `!advisor`. `/`-prefixed chat commands no longer work. Preserve operator-authored content when updating installed instructions.
+Update saved chat instructions and shortcuts to use `!pause`, `!stop`, `!resume`, `!snooze`, `!status`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), `!model`, `!effort`, `!permission-mode`, and `!advisor`. Control and harness commands use `!`; a `/`-prefixed chat message still invokes a matching skill. Preserve operator-authored content when updating installed instructions.
 
 Nothing extra to run for the binding store's allow-list entry: the unconditional `permissions-sync` step adds `Bash(bun */scripts/conversation.ts*)`.
 
@@ -79,7 +81,6 @@ Immediately after `hermit-update` or `hermit-docker update` finishes, stop the r
 To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
 
 ### Fixed
-- `/spawn-session` explicitly forbids permission-widening launch options and retries that work around a blocked helper.
 - Watchdog state-write failures notify the operator on each failed tick instead of silently preventing recovery.
 - The watchdog's staged-login commit now writes `oauthAccount` to `~/.claude.json` on host installs, where Claude Code reads it, instead of `~/.claude/.claude.json`.
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
