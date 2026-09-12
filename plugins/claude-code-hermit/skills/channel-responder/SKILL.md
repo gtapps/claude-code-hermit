@@ -24,7 +24,12 @@ differ fills each slot from its own wire segment (e.g. `plugin:acme-crm:crm` →
 `mcp__plugin_acme-crm_crm__reply`) — build the tool name from the raw `source`,
 not by doubling one segment. Every `config.channels` key below instead uses the
 normalized bare server name (`discord`, not the qualified string — see
-`lib/channel-envelope.ts`'s `normalizeChannelSource`). Pass the
+`lib/channel-envelope.ts`'s `normalizeChannelSource`). When only that bare
+`<sourceKey>` is available (a `later` row's `chat`, a conversation binding key),
+the reply tool is the loaded `…__reply` tool whose server segment is exactly
+`<sourceKey>` (`mcp__plugin_<plugin-name>_<sourceKey>__reply`); when none matches,
+or more than one does, the chat is unreachable and the undelivered message is
+reported per § Operator Notification instead of replying. Pass the
 inbound `chat_id` back. Optionally pass `reply_to` (the inbound `message_id`)
 to thread under the operator's message. The tool result names the sent
 message (`sent (id: N)`); the same plugin's `edit_message` tool rewrites that
