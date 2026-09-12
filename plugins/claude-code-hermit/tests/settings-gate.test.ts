@@ -98,6 +98,23 @@ describe('settings-gate ask list', () => {
     expectSilent(r);
   });
 
+  for (const [key, value] of [['isolate_chats', 'false'], ['shared_chats', "'[]'"], ['operators', "'[]'"]]) {
+    test(`channel ${key} asks`, async () => {
+      const dir = fixture();
+      const r = await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(`set channels.discord.${key} ${value}`) } }), dir);
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
+    });
+  }
+
+  test('channel recording and piped hatch-config remain silent', async () => {
+    const dir = fixture();
+    for (const command of [cmd('set channels.discord.log_chats false'),
+      `echo '{"channels":{"discord":{"shared_chats":["C1"]}}}' | bun /p/scripts/hatch-config.ts .claude-code-hermit --reinit`]) {
+      expectSilent(await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir));
+    }
+  });
+
   test('per-channel everyday keys and retired dials allow', async () => {
     const dir = fixture();
     for (const rest of [

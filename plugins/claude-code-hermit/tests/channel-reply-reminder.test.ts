@@ -140,6 +140,17 @@ describe('passive capture', () => {
     channels: { [source]: { passive_chats: ['1'], allowed_users: ['U1'], bot_user_id: '123', bot_username: 'handle', ...extra } },
     knowledge: { channel_log_enabled: logging },
   });
+  for (const logging of [true, false]) {
+    test(`log_chats overrides global ${logging} for capture and earlier messages`, withDir(async dir => {
+      logMessage(hermit(dir), { source: 'discord', chat_id: '1', direction: 'in', sender_id: 'U1', text: 'previous chatter' });
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1"><@123> new message</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(unconsolidated(hermit(dir)).rows).toHaveLength(logging ? 1 : 2);
+      expect(r.stdout.includes('Earlier messages in this chat')).toBe(!logging);
+      await run('<channel source="telegram" chat_id="2" user="U1">other channel</channel>', dir);
+      expect(unconsolidated(hermit(dir)).rows.some(row => row.source === 'telegram')).toBe(logging);
+    }, config('discord', { log_chats: !logging }, logging)));
+  }
   const prompt = (body: string, user = 'U1', source = 'discord', chat = '1') =>
     `<channel source="${source}" chat_id="${chat}" user="${user}">${body}</channel>`;
   const blocked = (stdout: string) => expect(JSON.parse(stdout)).toEqual({

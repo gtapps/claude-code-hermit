@@ -69,7 +69,7 @@ function capture(ctx: StageContext, envelope: ChannelEnvelope, passive: boolean)
 
   const dir = ctx.dir;
   const config = ctx.config();
-  if (!isLoggingEnabled(config)) return;
+  if (!isLoggingEnabled(config, envelope.source)) return;
 
   // Raw source (not sourceKey): channelEntry normalizes it internally, and
   // pause-keyword.ts and channel-status-responder.ts feed the same raw source
@@ -117,7 +117,7 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
     && isAllowedSender(ctx.config(), envelope.source, envelope.userId)
     && await isSelfMentioned(ctx.dir, ctx.config(), sourceKey, chatIdRaw, envelope.body);
 
-  if (addressed && isLoggingEnabled(ctx.config())) {
+  if (addressed && isLoggingEnabled(ctx.config(), envelope.source)) {
     // inbound ts is the platform's timestamp while outbound ts is the host clock,
     // so a skewed host clock shifts the window by the skew.
     const notBeforeIso = new Date(Date.now() - UNADDRESSED_MAX_AGE_MS).toISOString();

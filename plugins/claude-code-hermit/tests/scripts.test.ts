@@ -4599,6 +4599,37 @@ describe('cost-reflect source attribution', () => {
 // -------------------------------------------------------
 
 describe('search', () => {
+  const chatCases: [string, object | null, string | null, string[]][] = [
+    ['own chat', { channels: { discord: {} } }, 'discord:C1', ['C1']],
+    ['home chat', { channels: { discord: { default_chat_id: 'C1' } } }, 'discord:C1', ['C1', 'C2']],
+    ['non-technical home', { operator_profile: 'non-technical', channels: { discord: { default_chat_id: 'C1' } } }, 'discord:C1', ['C1']],
+    ...['technical', 'non-technical'].map((operator_profile): [string, object, string, string[]] => ['maintainer ' + operator_profile, { operator_profile, channels: { discord: { maintainer_channel_id: 'MAINT' } } }, 'discord:MAINT', ['C1', 'C2']]),
+    ['unknown channel', {}, 'acme-crm:X', ['X']],
+    ['terminal', {}, null, ['C1', 'C2']],
+    ['colon in chat id', { channels: { discord: {} } }, 'discord:C:1', ['C:1']],
+    ['unreadable config', null, 'discord:C1', ['C1']],
+  ];
+  for (const [name, config, chat, expected] of chatCases) {
+    test(`search --chat: ${name}`, withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), config === null ? '{' : JSON.stringify(config));
+      for (const chat_id of ['C1', 'C2']) {
+        expect(logMessage(hermitPath, { source: 'discord', chat_id, direction: 'in', text: `cliscope hit-${chat_id}` }).ok).toBe(true);
+      }
+      if (chat === 'acme-crm:X' || chat === 'discord:C:1') {
+        const source = chat === 'acme-crm:X' ? 'acme-crm' : 'discord';
+        const chat_id = chat === 'acme-crm:X' ? 'X' : 'C:1';
+        expect(logMessage(hermitPath, { source, chat_id, direction: 'in', text: `cliscope hit-${chat_id}` }).ok).toBe(true);
+      }
+      const r = await runScript('search.ts', { args: [hermitPath, ...(chat ? [`--chat=${chat}`] : []), 'cliscope'] });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe('');
+      for (const id of expected) expect(r.stdout).toContain(`hit-${id}`);
+      if (!expected.includes('C2')) expect(r.stdout).not.toContain('hit-C2');
+      if (!expected.includes('C1')) expect(r.stdout).not.toContain('hit-C1');
+    }));
+  }
+
   const runSearch = async (dir: string, query: string) => {
     const r = await runScript('search.ts', { args: [hermit(dir), query] });
     expect(r.exitCode).toBe(0);
@@ -4859,6 +4890,31 @@ describe('channel-log', () => {
         source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', message_id: 'M1',
         text: 'the foo-bar baz thing',
       });
+    }));
+
+    test('searchLog scopes own, channel, and shared rows by source and chat', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (const [source, chat_id] of [['discord', 'C1'], ['discord', 'C2'], ['telegram', 'C1'], ['telegram', 'T2']]) {
+        expect(logMessage(hermitPath, { source, chat_id, direction: 'in', text: 'scopeword' }).ok).toBe(true);
+      }
+      const own = { source: 'discord', chat_id: 'C1' };
+      const hits = (scope: { own: { source?: string; chat_id?: string }; channel?: string; shared: { source: string; chat_id: string }[] }) => searchLog(hermitPath, ['scopeword'], { scope }).map((row) => `${row.source}:${row.chat_id}`).sort();
+      expect(hits({ own, shared: [] })).toEqual(['discord:C1']);
+      expect(hits({ own, channel: 'discord', shared: [] })).toEqual(['discord:C1', 'discord:C2']);
+      expect(hits({ own, shared: [{ source: 'telegram', chat_id: 'T2' }] })).toEqual(['discord:C1', 'telegram:T2']);
+      expect(hits({ own: { chat_id: 'C1' }, shared: [] })).toEqual([]);
+      expect(hits({ own: { source: 'discord' }, shared: [] })).toEqual([]);
+      expect(searchLog(hermitPath, ['scopeword'])).toHaveLength(4);
+    }));
+
+    test('searchLog applies scope before the candidate limit', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (let i = 0; i < 250; i++) {
+        expect(logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'rankword' }).ok).toBe(true);
+      }
+      expect(logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'rankword with extra words to rank behind forbidden rows' }).ok).toBe(true);
+      expect(searchLog(hermitPath, ['rankword']).every((row) => row.chat_id === 'C2')).toBe(true);
+      expect(searchLog(hermitPath, ['rankword'], { scope: { own: { source: 'discord', chat_id: 'C1' }, shared: [] } })).toHaveLength(1);
     }));
 
     test('logMessage round-trips sender_id and leaves sender unchanged', withDir(async (dir) => {

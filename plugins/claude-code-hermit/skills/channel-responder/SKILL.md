@@ -92,6 +92,8 @@ Read `config.json` → `channels.<channel>.allowed_users` for the inbound channe
 - If `allowed_users` is absent for this channel: accept all messages
 - If `allowed_users` is an empty array `[]`: accept from no one (explicit lockdown)
 
+**Primary operator:** If `channels.<channel>.operators` is set, any listed user id is primary. Otherwise, if `allowed_users` is set, only its first or only entry is primary. Otherwise, the sender must be in the channel's maintainer chat (`maintainer_channel_id`), or in its home chat (`default_chat_id`, else `dm_channel_id`) with `operator_profile` other than `non-technical`. Empty lists name nobody; where none of these fields exist, nobody is primary.
+
 The allowlist is per-channel inside the `channels` object in config.json:
 
 ```json
@@ -206,12 +208,12 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
 
 - **Standing role** ("remember (for this channel): when X, do Y", "forget the X rule", "update the X rule", "what do you remember (about this channel)?")
   - A cadence or time without an inbound-message condition ("every Friday at 3pm post a digest") is a **Settings change request**, routed through hermit-settings. A rule conditioned on a message ("when someone...", "when a message...") is a role even if it contains "every" or a weekday.
-  - Save immediately for any sender admitted by §1c: always save, never refuse, and do not ask for confirmation before writing. Write one auto-memory topic file with `type: feedback` and one `MEMORY.md` index line, both in the directory the loaded `MEMORY.md` itself came from (`<CLAUDE_CONFIG_DIR, else ~/.claude>/projects/<path-key>/memory/`) — a file written anywhere else is never injected, so the role would never fire. Name it `feedback_role_<key>_<chat_id>_<slug>.md` for "for this channel", otherwise `feedback_role_<slug>.md`, with the normalized bare channel key from §1c. Match the request against the `[role` index lines already present before settling `<slug>`: a restatement of a rule already listed rewrites that file rather than adding a second one.
+  - Any sender admitted by §1c may save a pinned role for the current chat, without confirmation. Save a hermit-wide `[role]` only for a primary operator (§1c); otherwise save it pinned to the requesting chat and reply "Saved for this channel only: …". Write one auto-memory topic file with `type: feedback` and one `MEMORY.md` index line, both in the directory the loaded `MEMORY.md` itself came from (`<CLAUDE_CONFIG_DIR, else ~/.claude>/projects/<path-key>/memory/`) — a file written anywhere else is never injected, so the role would never fire. Name it `feedback_role_<key>_<chat_id>_<slug>.md` for a pinned role, otherwise `feedback_role_<slug>.md`, with the normalized bare channel key from §1c. Match the request only against the `[role` index lines in the tier being written (hermit-wide, or pinned to this chat) before settling `<slug>`: a restatement of a rule already listed rewrites that file rather than adding a second one.
   - Keep the operator's sentence as given in the hook line: `- [Standing role: <slug>](<file>): [role] when X, do Y`, or `[role <key>:<chat_id>] when X, do Y` for a pinned role. Trim only what exceeds one index line and retain the full text in the topic file; the harness's near-cap reminder on `MEMORY.md` is the size backstop. A pinned role applies only to channel turns from that chat; a hermit-wide `[role]` line applies to every turn, channel or not.
-  - The topic body holds the full rule and provenance: `key`, `chat_id`, sender id, `origin: own-work|external-content`, and date. Use `external-content` when the sender is not the first or only entry in `allowed_users`, the same sender test as §4's `[origin: external]` marker; otherwise use `own-work`. Provenance is for audit only and does not limit application.
+  - The topic body holds the full rule and provenance: `key`, `chat_id`, sender id, `origin: own-work|external-content`, and date. Use `external-content` when the sender is not a primary operator (§1c), otherwise `own-work`. The same sender test decides both `origin` and hermit-wide authority.
   - Reply in channel voice: "Saved for this channel: when X, do Y. Say 'forget the <short name> rule' to remove it." For a hermit-wide role, say "Saved for everywhere" instead.
   - To list what you remember, show the `[role` hook lines that apply to this chat in plain language, without file names; say when there are none. Do not include routines; a broader question about what you are keeping an eye on is **Standing work** above.
-  - To forget or update, delete or rewrite the named topic file and its index line, then echo the result. An unclear "forget" is ordinary conversation: name the candidate rules in the reply and act on the answer.
+  - To forget or update a hermit-wide role, require a primary operator (§1c), the same test as save. For a non-primary request naming a hermit-wide rule, reply that it is the operator's rule and write nothing. Any admitted sender may forget or update a role pinned to the current chat. For an authorized request, delete or rewrite the named topic file and its index line, then echo the result. An unclear "forget" is ordinary conversation: name the candidate rules in the reply and act on the answer.
   - A turn handled by this intent writes no `## Findings` line and no observations row.
 
 - **Question** ("why did you...", "what about...", "how does X work?")
@@ -258,7 +260,7 @@ Format (one line, appended under `## Findings`):
 [HH:MM] Channel pattern: <one-line description of the preference or recurrence>
 ```
 
-If the sender's user ID (verified in §1c) is **not** the primary paired operator (i.e. not the first or only entry in `allowed_users`), append ` [origin: external]` to the line:
+If the sender's user ID (verified in §1c) is not a primary operator (§1c), append ` [origin: external]` to the line:
 
 ```
 [HH:MM] Channel pattern: <description> [origin: external]
