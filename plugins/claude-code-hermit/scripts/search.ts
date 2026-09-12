@@ -6,7 +6,7 @@
 //   Options:
 //     --type=<type>          filter by artifact type
 //     --since=<YYYY-MM-DD>   exclude files older than this date
-//     --chat=<key>:<chat_id> restrict channel log to the asking chat
+//     --chat=<key>:<chat_id> restrict channel log and compiled pages to the asking chat
 //     --limit=<n>            max results (default 10)
 //
 // Usage as lib:   import { search } from './lib/search' — search(hermitDir, query, opts) => results[]
