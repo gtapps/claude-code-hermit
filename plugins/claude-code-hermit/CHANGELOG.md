@@ -27,6 +27,7 @@
 - Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
 - Helpers that need a decision go idle and surface the question in their chat instead of parking.
 - Resumed conversation helpers keep their full history on later resumes.
+- Replies to a remembered chat key on a custom channel plugin are delivered or reported as undeliverable rather than dropped.
 
 ### Upgrade Instructions
 
