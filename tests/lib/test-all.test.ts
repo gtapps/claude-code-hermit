@@ -19,9 +19,14 @@ function fixture() {
 import fs from 'node:fs';
 import path from 'node:path';
 const root = process.env.TEST_RUNNER_ROOT;
-if (process.argv[2] === '-e') { console.log('2'); process.exit(0); }
+if (process.argv[2] === '-e') {
+  // Real bun colorizes console.log values when FORCE_COLOR is set.
+  console.log(process.env.FORCE_COLOR ? '\u001b[0m\u001b[33m2\u001b[0m' : '2');
+  process.exit(0);
+}
 const slug = path.basename(process.cwd());
 if (slug === 'claude-code-hermit') {
+  fs.writeFileSync(path.join(root, 'core-args.json'), JSON.stringify(process.argv.slice(2)));
   fs.writeFileSync(path.join(root, 'core-started'), '');
   const deadline = Date.now() + 10000;
   while (!fs.existsSync(path.join(root, 'release-core')) && Date.now() < deadline) await Bun.sleep(10);
@@ -96,6 +101,21 @@ test('a fast plugin failure and root failure remain failures and retain complete
     const logs = r.stdout().match(/Full test logs: (.+)/)![1];
     expect(fs.readFileSync(path.join(logs, 'feed-hermit.log'), 'utf8')).toContain('original failure detail');
     expect(fs.readFileSync(path.join(logs, 'root.log'), 'utf8')).toContain('root failure');
+  } finally {
+    await Promise.all([r.proc.exited, r.output, r.stderr]);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('core worker count survives FORCE_COLOR as a bare integer', async () => {
+  const root = fixture();
+  fs.writeFileSync(path.join(root, 'release-core'), '');
+  const r = run(root, { FORCE_COLOR: '3' });
+  try {
+    expect(await r.proc.exited).toBe(0);
+    await r.output;
+    const args: string[] = JSON.parse(fs.readFileSync(path.join(root, 'core-args.json'), 'utf8'));
+    expect(args).toContain('--parallel=2');
   } finally {
     await Promise.all([r.proc.exited, r.output, r.stderr]);
     fs.rmSync(root, { recursive: true, force: true });

@@ -8,10 +8,13 @@
 // Re-exported, never redeclared: parseChannelEnvelope is the only producer, and
 // a structurally-compatible copy here silently drifts from it (a field added to
 // the parser stayed invisible to every stage until a typecheck caught it).
+import type { Conversation } from '../conversations';
 import type { ChannelEnvelope } from '../channel-envelope';
 export type { ChannelEnvelope };
 
 export interface StageContext {
+  skipHarnessCommand?: boolean;
+  conversation?: { key: string; record: Conversation };
   /** Resolved hermit state dir — computed once for the whole pipeline. */
   dir: string;
   /** The submitted prompt text. */

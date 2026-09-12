@@ -95,7 +95,7 @@ Behavioral "when X, do Y" rules belong in `CLAUDE.md`, not here — see [the FAQ
 
 Tell it what you need, add optional tags (e.g., `feature, api`). Hermit proposes a plan, records its steps in the Progress Log, and waits for your go-ahead. As it works, `SHELL.md` tracks everything — the plan, progress log, blockers, findings. Cost is tracked separately in `.status.json` and injected into context at session start.
 
-Check status anytime — just type `/status`:
+Check status anytime — just type `!status`:
 
 ```
 Session S-001 | in_progress | feature, api
@@ -220,7 +220,7 @@ Use [`/when-done-switch-to`](../skills/when-done-switch-to/SKILL.md) inside a ta
 
 **`CLAUDE_CODE_EFFORT_LEVEL`** (optional) sets the reasoning effort level. Add it to `config.env` if you want to override the model default — note the env var takes highest priority and overrides runtime `/effort`, so omit it for interactive sessions where you want per-turn control. Valid values and defaults: [CC model-config docs](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 
-A trusted channel sender can also pair the main model with an experimental [advisor model](https://code.claude.com/docs/en/advisor) mid-session via `/advisor <model>` (and clear it with `/advisor off`) — unlike `model`/`effort` above, this selection is not re-asserted at boot. Claude Code writes it to its own user-level settings, so it persists across restarts, applies to every session sharing that config directory, and keeps adding spend until a trusted sender sends `/advisor off`.
+A trusted channel sender can also pair the main model with an experimental [advisor model](https://code.claude.com/docs/en/advisor) mid-session via `!advisor <model>` (and clear it with `!advisor off`) — unlike `model`/`effort` above, this selection is not re-asserted at boot. Claude Code writes it to its own user-level settings, so it persists across restarts, applies to every session sharing that config directory, and keeps adding spend until a trusted sender sends `!advisor off`.
 
 ---
 

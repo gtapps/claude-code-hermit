@@ -64,7 +64,7 @@ function selfMentionClause(ctx: StageContext, envelope: ChannelEnvelope): string
 // Episodic capture — best-effort, never affects the reminder. Its guards are
 // early returns from this helper, so none of them can swallow the reminder the
 // caller is about to return.
-function capture(ctx: StageContext, envelope: ChannelEnvelope, passive: boolean): void {
+export function capture(ctx: StageContext, envelope: ChannelEnvelope, passive: boolean): void {
   if (!envelope.body) return;
 
   const dir = ctx.dir;
@@ -139,7 +139,7 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
     process.stderr.write(`[channel-log] inbound capture failed: ${e?.message || e}\n`);
   }
 
-  if (passive && !addressed) {
+  if (passive && !addressed && !ctx.conversation) {
     return { block: 'passive chat: recorded, not addressed' };
   }
 

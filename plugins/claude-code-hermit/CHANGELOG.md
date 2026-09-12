@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation.
+- In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
+
+### Changed
+- Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
 - Chat-scoped `/recall` with `isolate_chats` and `shared_chats`; the technical-profile home chat, maintainer chat, and terminal remain unscoped.
 - `channels.<name>.log_chats` records or skips one channel regardless of the global switch.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
@@ -17,6 +22,12 @@
 - `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
 - Docker pairing confirmation notes it may take up to 1 min before the bot replies
 - Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
+
+### Upgrade Instructions
+
+Update saved chat instructions and shortcuts to use `!pause`, `!stop`, `!resume`, `!snooze`, `!status`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), `!model`, `!effort`, `!permission-mode`, and `!advisor`. `/`-prefixed chat commands no longer work. Preserve operator-authored content when updating installed instructions.
+
+Nothing extra to run for the binding store's allow-list entry: the unconditional `permissions-sync` step adds `Bash(bun */scripts/conversation.ts*)`.
 
 ## [1.3.6] - 2026-09-10
 

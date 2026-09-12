@@ -51,7 +51,7 @@ Input-agnostic. Same session discipline regardless of how your hermit is invoked
 | Headless                                                         | `claude -p "..."` for scripted tasks |
 | [External control surface](external-control-surface.md)          | Orchestrator MCP (stdio)             |
 
-All channels converge on the same `sessions/SHELL.md`.
+All channels converge on the resident, which binds non-home conversations to background helpers in their own worktrees while preserving its `sessions/SHELL.md` task. Bindings use `<sourceKey>:<chat_id>` and a stable helper session id; reports park the binding, and later replies resume it. [Claude Tag](https://claude.com/docs/claude-tag/concepts/how-it-works) provides thread-owned sessions natively in Slack; [Remote Control](https://code.claude.com/docs/en/remote-control) connects one person to their session; Hermit's conversation ownership serves self-hosted Discord and Telegram.
 
 ---
 

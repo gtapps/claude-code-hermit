@@ -33,7 +33,7 @@ describe('guest prompt ownership', () => {
       channels: { telegram: { enabled: true, dm_channel_id: '1', allowed_users: ['u1'] } },
     }));
     const input = JSON.stringify({
-      session_id: id, prompt: '<channel source="telegram" chat_id="1" user="u1">/pause</channel>',
+      session_id: id, prompt: '<channel source="telegram" chat_id="1" user="u1">!pause</channel>',
     });
     await runScript('user-prompt-pipeline.ts', { cwd: dir, stdin: input });
     expect(fs.existsSync(state(dir, 'operator-pause.json'))).toBe(false);

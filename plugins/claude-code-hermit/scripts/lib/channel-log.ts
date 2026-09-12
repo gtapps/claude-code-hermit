@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
+import { readSettledConfig } from './config-read';
 import { channelEntry } from './channel-auth';
 
 type Json = any;
@@ -407,5 +408,26 @@ function prune(hermitDir: string, retentionDays: number): { ok: boolean; deleted
   }
 }
 
-export { logMessage, searchLog, unconsolidated, inboundSince, unaddressedSince, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
+/** Last per-chat rows in both directions, returned oldest first. */
+function conversationHistory(
+  hermitDir: string,
+  source: string,
+  chatId: string,
+  { limit }: { limit: number },
+): Pick<ChannelRow, 'ts' | 'direction' | 'sender' | 'text'>[] {
+  try {
+    if (!Number.isInteger(limit) || limit <= 0 || !dbExists(hermitDir) || !isLoggingEnabled(readSettledConfig(hermitDir))) return [];
+    const db = openDb(hermitDir, { readonly: true });
+    try {
+      const rows = db.query(
+        `SELECT ts, direction, sender, text FROM messages
+         WHERE source = ? AND chat_id = ?
+         ORDER BY ts DESC, id DESC LIMIT ?`
+      ).all(source, chatId, limit) as Pick<ChannelRow, 'ts' | 'direction' | 'sender' | 'text'>[];
+      return rows.reverse();
+    } finally { db.close(); }
+  } catch { return []; }
+}
+
+export { logMessage, searchLog, unconsolidated, inboundSince, unaddressedSince, conversationHistory, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
 export type { LogInput, ChannelRow };

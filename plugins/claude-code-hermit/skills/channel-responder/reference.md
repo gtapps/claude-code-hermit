@@ -4,7 +4,7 @@ Read on demand from `SKILL.md`; never loaded on a turn that does not need it.
 
 ## Standing work
 
-Standing work is what the hermit does without being asked in the moment: routines, watches, and standing roles. Session-triggered `scheduled_checks` fire on session events and are not standing work. Answer in channel voice (`SKILL.md` § 3): no cron strings, ids, file paths, or slash commands, except the relayed `/doctor` when a live check is the next step.
+Standing work is what the hermit does without being asked in the moment: routines, watches, and standing roles. Session-triggered `scheduled_checks` fire on session events and are not standing work. Answer in channel voice (`SKILL.md` § 3): no cron strings, ids, file paths, or slash commands, except the relayed `!doctor` when a live check is the next step.
 
 ### Gather (bounded reads only)
 
@@ -13,7 +13,7 @@ Standing work is what the hermit does without being asked in the moment: routine
 - Watches: `Read state/monitors.runtime.json` for id, description, source, class, started_at.
 - Roles: the `[role` lines already in this turn's context. Hermit-wide ones always apply; a pinned `[role <key>:<chat_id>]` line applies only to that chat (`SKILL.md` § 1b).
 - Current activity: `session_state` in `state/runtime.json` and the Task line of `sessions/SHELL.md`.
-- Health evidence: `Read state/doctor-report.json` only for the "anything to deal with" and "what can you access" shapes. Do not run `doctor-check.ts` from this intent; a live check is the relayed `/doctor` command, which the operator sends.
+- Health evidence: `Read state/doctor-report.json` only for the "anything to deal with" and "what can you access" shapes. Do not run `doctor-check.ts` from this intent; a live check is the relayed `!doctor` command, which the operator sends.
 
 Never `tail` `state/routine-metrics.jsonl`, the cost log, or the channel log. A field none of these sources records is unknown; say so instead of guessing.
 
@@ -45,4 +45,4 @@ Relay the `settings-edit ... show` row for the setting: saved value, what change
 
 ### Access question
 
-From config: channels with `enabled !== false` and whether each has an allowlist, `permission_mode`, `remote`, enabled artifact pages, `auth_mode`. From `state/doctor-report.json`: the last `channel-liveness`, `credential-expiry`, and `permissions` results with their timestamp. Configured is not verified; say which is which. No credentials, chat ids, or file paths in the reply. In a group, or for a sender who is not the trusted controller, give only the coarse shape (the same audience rule as `/status`).
+From config: channels with `enabled !== false` and whether each has an allowlist, `permission_mode`, `remote`, enabled artifact pages, `auth_mode`. From `state/doctor-report.json`: the last `channel-liveness`, `credential-expiry`, and `permissions` results with their timestamp. Configured is not verified; say which is which. No credentials, chat ids, or file paths in the reply. In a group, or for a sender who is not the trusted controller, give only the coarse shape (the same audience rule as `!status`).
