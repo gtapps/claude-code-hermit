@@ -134,7 +134,7 @@
       "name": "hermit-scribe",
       "source": "./plugins/hermit-scribe",
       "description": "A GitHub App Bot for claude-code-hermit maintainers. Turns proposals and ad-hoc reports into privacy-scrubbed, deduplicated GitHub issues, with operator approval before publishing.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "category": "maintainer",
       "author": {
         "name": "gtapps",

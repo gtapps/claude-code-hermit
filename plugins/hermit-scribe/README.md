@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.4-green.svg" alt="Version 0.1.4" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.5-green.svg" alt="Version 0.1.5" /></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
@@ -49,7 +49,7 @@ Set them in your project `.env` (loaded by Docker hermit via `env_file:`) or in 
 
 ## Setup
 
-Run `/hermit-scribe:hatch` after configuring the env vars above. It appends or version-refreshes the Issue Filing block in your `CLAUDE.md`/`CLAUDE.local.md`, stamps `_hermit_versions["hermit-scribe"]` in `.claude-code-hermit/config.json`, and seeds an `autoMode.environment` entry for `api.github.com` (context for the auto-mode classifier, not a standing permission grant — filing is always operator-confirmed regardless). Re-run hatch after an upgrade to refresh the block.
+Run `/hermit-scribe:hatch` after configuring the env vars above. It appends or version-refreshes the Issue Filing block in your `CLAUDE.md`/`CLAUDE.local.md` and stamps `_hermit_versions["hermit-scribe"]` in `.claude-code-hermit/config.json`. Re-run hatch after an upgrade to refresh the block.
 
 ## Usage
 
