@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- The hermit can check on something later from any chat, with or without a command; it looks once when due and replies in that chat.
 - Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
@@ -23,6 +24,8 @@
 - `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
 - Docker pairing confirmation notes it may take up to 1 min before the bot replies
 - Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
+- Helpers that need a decision go idle and surface the question in their chat instead of parking.
+- Resumed conversation helpers keep their full history on later resumes.
 
 ### Upgrade Instructions
 

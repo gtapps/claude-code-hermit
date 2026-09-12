@@ -43,7 +43,7 @@ function withStore<T>(dir: string, write: boolean, run: (store: Store) => T): T 
 // and whatever a marketplace channel plugin supplies. The charset stays free of
 // whitespace, colons, and markup so the key can still be interpolated into
 // model-facing context and split back apart on its single separator.
-function checkKey(key: string): void {
+export function checkKey(key: string): void {
   if (!/^[\w-]+:[\w.~+@;=-]{1,128}$/.test(key)) throw new Error('invalid-key');
 }
 

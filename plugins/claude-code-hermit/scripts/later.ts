@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { appendJsonlLine } from './lib/append-jsonl';
 import { flagValue, readStdinIfFlagged } from './lib/cli';
+import { checkKey } from './lib/conversations';
 import { scanForInjection } from './lib/injection-scan';
 import { readConfigRaw } from './lib/config-read';
 import { compileCron, cronMatchesCompiled, makeTzFormatter, partsFromFormatter } from './lib/cron-match';
@@ -11,10 +12,10 @@ import { resolveHermitNowMs } from './lib/time';
 
 type State = 'pending' | 'held' | 'broken' | 'indeterminate' | 'cancelled';
 interface Row {
-  id: string; claim: string; cmd: string; due: string; origin: 'operator' | 'hermit';
+  id: string; claim: string; cmd: string | null; chat?: string; due: string; origin: 'operator' | 'hermit';
   session: string | null; created_at: string; state: State;
   timeout_s?: number;
-  checked_at?: string; late?: boolean; exit?: number; output?: string; reason?: string;
+  checked_at?: string; late?: boolean; exit?: number | null; output?: string; reason?: string;
 }
 
 const DAY_MS = 86400000;
@@ -125,15 +126,18 @@ async function main() {
   }
   if (verb === 'add') {
     const claim = flagValue(args, '--claim');
-    const cmd = flagValue(args, '--cmd');
+    const cmd = flagValue(args, '--cmd') ?? null;
+    const chat = flagValue(args, '--chat');
+    if (chat !== undefined) checkKey(chat);
     const due = flagValue(args, '--due');
     const origin = flagValue(args, '--origin');
-    if (!claim || !cmd || !due || !Number.isFinite(Date.parse(due)) || (origin !== 'operator' && origin !== 'hermit')) throw new Error('invalid add arguments');
+    if (!claim || !due || !Number.isFinite(Date.parse(due)) || (origin !== 'operator' && origin !== 'hermit')) throw new Error('invalid add arguments');
     const timeoutRaw = flagValue(args, '--timeout-s');
     const timeoutS = timeoutRaw === undefined ? DEFAULT_TIMEOUT_S : Number(timeoutRaw);
     if (!Number.isInteger(timeoutS) || timeoutS < 1 || timeoutS > MAX_TIMEOUT_S) throw new Error(`--timeout-s must be an integer between 1 and ${MAX_TIMEOUT_S}`);
     const row: Row = { id: crypto.randomUUID(), claim, cmd, due: new Date(due).toISOString(), origin,
       session: flagValue(args, '--session') ?? null, created_at: date.toISOString(), state: 'pending',
+      ...(chat !== undefined ? { chat } : {}),
       ...(timeoutS !== DEFAULT_TIMEOUT_S ? { timeout_s: timeoutS } : {}) };
     const error = withLedgerLock(file, () => appendJsonlLine(file, JSON.stringify(row)));
     if (error) throw new Error(error);
@@ -141,7 +145,9 @@ async function main() {
     return;
   }
   if (verb === 'list') {
-    for (const row of [...rows.filter(row => row.state === 'pending'), ...rows.filter(row => row.state !== 'pending').slice(-10)]) {
+    const chat = flagValue(args, '--chat');
+    const visible = chat === undefined ? rows : rows.filter(row => row.chat === chat);
+    for (const row of [...visible.filter(row => row.state === 'pending'), ...visible.filter(row => row.state !== 'pending').slice(-10)]) {
       const { cmd, output, ...summary } = row;
       console.log(JSON.stringify(summary));
     }
@@ -159,16 +165,18 @@ async function main() {
     return;
   }
   if (verb === 'check') {
-    const hit = scanForInjection(row.claim) || scanForInjection(row.cmd);
+    const hit = scanForInjection(row.claim) || (row.cmd != null && scanForInjection(row.cmd));
     if (hit) {
       const reason = `injection-suspect:${hit.cls}`;
       if (!updatePending(file, row.id, { state: 'indeterminate', reason, checked_at: date.toISOString(), late: isLate(dir, row, date) })) { noop(); return; }
       console.log(reason);
       return;
     }
-    const result = await evidence(row.cmd, path.dirname(dir), row.timeout_s ?? DEFAULT_TIMEOUT_S);
+    const result = row.cmd == null
+      ? { exit: null, output: '', timed_out: false }
+      : await evidence(row.cmd, path.dirname(dir), row.timeout_s ?? DEFAULT_TIMEOUT_S);
     if (!updatePending(file, row.id, { exit: result.exit, output: result.output })) { noop(); return; }
-    console.log(JSON.stringify({ id: row.id, claim: row.claim, cmd: row.cmd, ...result, late: isLate(dir, row, date) }));
+    console.log(JSON.stringify({ ...row, ...result, late: isLate(dir, row, date) }));
     return;
   }
   const state = args[1];

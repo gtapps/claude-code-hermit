@@ -66,6 +66,15 @@ test('CLI output and two concurrent updates both land', async () => {
   expect(fs.existsSync(path.join(dir, 'state', 'conversations.json.lock'))).toBe(false);
 });
 
+test('CLI session id refresh preserves generation, muted flag and card', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const card = { chat_id: '123', message_id: '456' };
+  update(dir, key, { generation: '+1', muted: true, card });
+  expect(await cli(dir, ['update', key, '--session-id', 'resumed-session'])).toEqual({ stdout: `OK|${key}\n`, code: 0 });
+  expect(lookup(dir, key)).toMatchObject({ session_id: 'resumed-session', generation: 2, muted: true, card });
+});
+
 test('keyless verbs wrap the channel library calls', async () => {
   const dir = freshDir();
   const tokenDir = path.join(dir, 'discord');
