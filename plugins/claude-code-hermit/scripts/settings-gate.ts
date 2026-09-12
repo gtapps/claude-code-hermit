@@ -16,6 +16,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { getPath } from './settings-edit';
 import { hermitDir } from './lib/cc-compat';
 import { readConfigRaw } from './lib/config-read';
 import { byArg } from './lib/settings/registry';
@@ -30,17 +32,49 @@ const WRITE_VERBS = new Set(['set', 'unset', 'toggle', 'apply-known']);
 /** Write verbs that take a value after the target; see settings-edit.ts's dispatch. */
 const TAKES_VALUE = new Set(['set', 'apply-known']);
 
-/**
- * Paths that raise the native ask. `voice.style` is not asked: three sealed
- * values that carry no text. `voice` and `voice.prose` are, because prose
- * becomes every future session's system prompt. Under `channels`, only the
- * enrollment fields (who may reach the hermit, which chat it trusts) and the
- * containers that replace them. `isolate_chats`, `shared_chats`, and `operators`
- * govern what a chat may read or who may change behaviour; everyday keys such as
- * `morning_brief` apply without a prompt.
- */
+/** Static protected subtrees. Parent replacements compare only this content. */
 const ASK_PATH =
-  /^(permission_mode|env|monitors|boot_skill|shutdown_skill|backup)(\..+)?$|^voice(\.prose)?$|^routines\.\d+\.precheck(_timeout_s)?$|^channels(\.[^.]+)?$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id|isolate_chats|shared_chats|operators)(\..+)?$/;
+  /^(permission_mode|operator_profile|env|monitors|boot_skill|shutdown_skill|backup|remote|chrome|auth_mode)(\..+)?$|^voice\.prose(\..+)?$|^channels\.primary$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id|isolate_chats|shared_chats|operators|state_dir|marketplace|enabled)(\..+)?$|^telemetry_export\.(enabled|destination|redact_operator_text)(\..+)?$|^artifacts\.(publish_authorized|backend)(\..+)?$|^docker\.(packages|recommended_plugins|fleet_mesh)(\..+)?$|^routines\.\d+\.precheck(_timeout_s)?$/;
+
+/** Only these unprotected parents can replace protected content. */
+const ASK_CONTAINER = /^(voice|channels|telemetry_export|artifacts|docker)$|^channels\.[^.]+$/;
+
+function protectedChanges(before: Json, after: Json, dotted: string): string[] {
+  if (isDeepStrictEqual(before, after)) return [];
+  if (ASK_PATH.test(dotted)) return [dotted];
+  if (!ASK_CONTAINER.test(dotted)) return [];
+  const keys = new Set([
+    ...Object.keys(before && typeof before === 'object' ? before : {}),
+    ...Object.keys(after && typeof after === 'object' ? after : {}),
+  ]);
+  return [...keys].flatMap(key => protectedChanges(before?.[key], after?.[key], `${dotted}.${key}`));
+}
+
+/** An uncertain parent write must not silently discard protected content. */
+function containerChanges(file: string, cwd: string, dotted: string, verb: string, raw: string): string[] {
+  if (/[$`~\\*?\[\]{}]/.test(file) || /[$`\\]/.test(raw)) return [dotted];
+  try {
+    let config: Json = {};
+    try {
+      const text = fs.readFileSync(path.resolve(cwd, file), 'utf8');
+      config = text.trim() ? JSON.parse(text) : {};
+    } catch (err: any) {
+      if (err.code !== 'ENOENT') return [dotted];
+    }
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return [dotted];
+    let after: Json;
+    if (verb === 'set') {
+      if (raw === '') return [dotted];
+      after = raw === 'none' || raw === 'clear' ? null : JSON.parse(raw);
+      if (after !== null && (typeof after !== 'object' || Array.isArray(after))) return [dotted];
+    } else if (verb !== 'unset') {
+      return [dotted];
+    }
+    return protectedChanges(getPath(config, dotted), after, dotted);
+  } catch {
+    return [dotted];
+  }
+}
 
 /**
  * The container spellings judged by value: the whole array, and one indexed entry.
@@ -211,7 +245,7 @@ const SHELL_EXPANDS = /[$`]/;
  * permission_mode bypassPermissions`), and a leading safe write must not
  * launder a protected one behind it.
  */
-function protectedMutation(command: string): string[] | null {
+function protectedMutation(command: string, cwd: string): string[] | null {
   // An opaque write of the whole file can replace any asked path, so it
   // raises the native prompt regardless of what it happens to contain.
   const fileWrite = CONFIG_FILE_WRITE.exec(command);
@@ -249,6 +283,15 @@ function protectedMutation(command: string): string[] | null {
       continue;
     }
     const dotted = resolveTarget(verb, t);
+    if (!ASK_PATH.test(dotted) && ASK_CONTAINER.test(dotted)) {
+      // A preceding shell command can change cwd or the comparison baseline.
+      // Keep such parent writes opaque rather than interpreting shell programs.
+      const changed = command.slice(0, m.index).match(/[;&|\n]/)
+        ? [dotted]
+        : containerChanges(stripQuotes(m[1]), cwd, dotted, verb, value);
+      for (const field of changed) if (!shown.includes(field)) shown.push(field);
+      continue;
+    }
     const needsAsk = ASK_PATH.test(dotted)
       || (ROUTINES_CONTAINER.test(dotted) && value !== ''
         && precheckSetChanged(value, currentRoutines()));
@@ -270,7 +313,8 @@ function main(payload: any): void {
   let asked: string[] | null = null;
 
   if (tool === 'Bash') {
-    asked = protectedMutation(typeof input.command === 'string' ? input.command : '');
+    asked = protectedMutation(typeof input.command === 'string' ? input.command : '',
+      typeof payload.cwd === 'string' ? payload.cwd : process.cwd());
   } else {
     const fp = typeof input.file_path === 'string' ? input.file_path : '';
     asked = targetsConfigFile(fp) ? [path.basename(fp.replace(/\\/g, '/'))] : null;
