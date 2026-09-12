@@ -295,7 +295,7 @@ Container restarts trigger recovery automatically:
 
 ## Cost Management
 
-**Per-session budget:** `/claude-code-hermit:hermit-settings budget`. Warns at 80%, recommends closing at 100%.
+**Spend caps:** set daily, weekly, and monthly USD caps in the `budget` block of `.claude-code-hermit/config.json`, through `/claude-code-hermit:hermit-settings`. They cover the whole installation, not one session: every session's Stop in the folder counts toward them, background helpers included. A cap warns once at 80%; at 100% it writes a breach alert, or pauses the resident until the window resets, depending on `budget.action`. Ships inert, so nothing is capped until you set one. See [Budget](config-reference.md#budget).
 
 **Token optimization** (managed in `config.json` `env`):
 

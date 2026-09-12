@@ -123,6 +123,50 @@ describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
   }));
 });
 
+describe('updateCostIndex — interleaved writers', () => {
+  test('one fold after two appends counts both new rows once', withTmpdir((dir) => {
+    const logPath = writeLog(dir, [
+      { timestamp: '2026-07-04T12:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
+    ]);
+    const idxPath = path.join(dir, 'cost-index.json');
+    updateCostIndex(logPath, idxPath, 'UTC', ASOF);
+
+    appendCostRows(logPath, [
+      { timestamp: '2026-07-04T13:00:00Z', session_id: 's2', source: 'other', model: 'sonnet', total_tokens: 50, estimated_cost_usd: 0.25 },
+      { timestamp: '2026-07-04T14:00:00Z', session_id: 's3', source: 'other', model: 'sonnet', total_tokens: 25, estimated_cost_usd: 0.5 },
+    ]);
+    const idx = updateCostIndex(logPath, idxPath, 'UTC', ASOF);
+
+    expect(idx.total_cost_usd).toBe(1.75);
+    expect(idx.byte_offset).toBe(fs.statSync(logPath).size);
+  }));
+
+  test('a stale checkpoint winning the rename still counts each row once', withTmpdir((dir) => {
+    const logPath = writeLog(dir, [
+      { timestamp: '2026-07-04T12:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
+    ]);
+    const idxPath = path.join(dir, 'cost-index.json');
+    updateCostIndex(logPath, idxPath, 'UTC', ASOF);
+
+    appendCostRows(logPath, [
+      { timestamp: '2026-07-04T13:00:00Z', session_id: 's2', source: 'other', model: 'sonnet', total_tokens: 50, estimated_cost_usd: 0.25 },
+    ]);
+    const checkpointA = JSON.parse(JSON.stringify(updateCostIndex(logPath, idxPath, 'UTC', ASOF)));
+    appendCostRows(logPath, [
+      { timestamp: '2026-07-04T14:00:00Z', session_id: 's3', source: 'other', model: 'sonnet', total_tokens: 25, estimated_cost_usd: 0.5 },
+    ]);
+    updateCostIndex(logPath, idxPath, 'UTC', ASOF);
+
+    // Stale _writeIndex rename: checkpoint@A lands after checkpoint@A+B.
+    fs.writeFileSync(idxPath, JSON.stringify(checkpointA));
+    const idx = updateCostIndex(logPath, idxPath, 'UTC', ASOF);
+
+    expect(idx.total_cost_usd).toBe(1.75);
+    expect(idx.by_date['2026-07-04'].cost).toBe(1.75);
+    expect(idx.byte_offset).toBe(fs.statSync(logPath).size);
+  }));
+});
+
 describe('index version bump forces a rebuild', () => {
   test('a v2 (pre-PROP-016) index is discarded and rebuilt with by_week/by_month', withTmpdir((dir) => {
     const logPath = writeLog(dir, [
