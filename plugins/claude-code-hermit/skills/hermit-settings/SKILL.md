@@ -10,7 +10,7 @@ View or modify the hermit configuration for this project.
 
 If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation.
 
-Everyday settings apply through `settings-edit`. Settings that reach what the session executes or who may talk to it (permission mode, env, monitors, boot and shutdown skills, voice prose, backup, channel enrollment, and a routine precheck) raise Claude Code's own permission prompt, delivered to the operator's DM by the channel plugin or shown in the terminal pane. A No is the operator's answer: never retry or route around it, and never edit `config.json` directly. The authoritative list is `scripts/settings-gate.ts`.
+Everyday settings apply through `settings-edit`. A static list in `scripts/settings-gate.ts` protects trust, disclosure, credentials, executable configuration, and existing guarded settings with Claude Code's native permission prompt. Protected writes ask in either direction. Parent replacements ask only when protected content changes; routine containers keep their existing precheck comparison. A No is the operator's answer: never retry or route around it, and never edit `config.json` directly. The channel plugin delivers the prompt to the operator's DM or the terminal pane.
 
 On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via the reply tool instead of waiting on terminal input — the branch proceeds as an over-channel exchange (ask, then act on the reply when it arrives), the same as any other channel conversation. **Never call `AskUserQuestion` on a channel-tagged turn** — it renders in the terminal, invisible to a remote operator. The one bounded ask in this skill (`quality-gate`, below) additionally queues a durable micro-proposal entry per `channel-responder` § Channel-safe ask bridge (schema: `reflect` § Queuing procedure), so it survives compaction or a session restart; free-form asks queue nothing.
 
@@ -262,6 +262,7 @@ Note: "Channel changes take effect on next `hermit-start` run. `channels.primary
   Gate = the routine's `precheck`, run by the routine monitor before it wakes the session;
   `—` means the routine always wakes it. Adding or changing one raises the native permission prompt.
   ```
+- Removing a precheck through routine replacement stays silent; direct precheck or timeout leaf edits, including unset, still ask. Routine command changes gain no extra gate.
 - Every write below names **one entry** — `routines.<index>`, 0-based, so table number − 1. Never write the
   whole `routines` array: the settings gate reads the value of a container write, and a value it cannot parse
   (`$(cat …)`, a heredoc, a shell variable) raises the native permission prompt even when nothing is gated.

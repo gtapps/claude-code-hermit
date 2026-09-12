@@ -8,6 +8,7 @@
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
 ### Changed
+- Config permission prompts cover trust, disclosure, and tool settings in either direction; parent replacements prompt only for protected changes, with routine precheck behavior preserved.
 - Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
 - Chat-scoped `/recall` with `isolate_chats` and `shared_chats`; the technical-profile home chat, maintainer chat, and terminal remain unscoped.
 - Compiled pages carry `audience`; a chat not in `shared_chats` files only to its own page, not auto-memory, and scoped `/recall` skips other chats' pages, session reports, and proposals.
