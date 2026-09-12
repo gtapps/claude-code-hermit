@@ -110,6 +110,9 @@ describe('CLAUDE-APPEND size budget', () => {
     // Widening the peer-question line to peer questions or requests (+206 B,
     // landing at ~8,960 B) is funded from that headroom, no raise: requests may
     // initiate in-scope work, and the authority limits are now stated explicitly.
+    // Conversation progress/report routing adds one always-loaded dispatch line,
+    // funded from existing headroom; the watch skill owns the full protocol.
+    // Chat controls now use ! instead of /; the spelling change adds no bytes.
     expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(10450);
   });
 });

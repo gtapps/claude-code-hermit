@@ -118,7 +118,7 @@ After a survivor-blocked stop the shutdown gate keeps the channel silent, becaus
 ## Morning Brief Not Sending
 
 - See "Routines Not Firing" above — the morning brief is a routine (`claude-code-hermit:brief --morning`).
-- Verify channels work first — send `/status` manually from your phone.
+- Verify channels work first — send `!status` manually from your phone.
 
 ## Hermit Keeps Suggesting Dismissed Proposals
 

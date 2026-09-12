@@ -13,7 +13,10 @@ RUN_ALL_SLUGS=(claude-code-dev-hermit claude-code-fitness-hermit hermit-scribe l
 # Bun 1.4 isolates files in worker processes. Cap core at two workers to keep
 # local runs responsive: other plugin suites also run here, and each core file
 # can start concurrent subprocess tests.
-CORE_WORKERS=$(bun -e 'console.log(Math.min(2, require("node:os").availableParallelism()))')
+# Clear FORCE_COLOR for the capture: bun colorizes console.log values when it is
+# set (every Claude Code session exports FORCE_COLOR=3), which would smuggle ANSI
+# escapes into CORE_WORKERS and make --parallel reject an apparently valid integer.
+CORE_WORKERS=$(env -u FORCE_COLOR bun -e 'console.log(Math.min(2, require("node:os").availableParallelism()))')
 declare -A PIDS
 
 now() { date +%s; }

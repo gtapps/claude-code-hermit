@@ -224,7 +224,7 @@ Both session-spawning paths require a Git workspace. Remote Control requires a C
 
 **Watch other sessions.** Through [Claude Code cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), ask the agent to watch a local Claude Code session, including one you started interactively, and notify you when it next becomes idle.
 
-**Claude Code controls from chat.** Use `/model sonnet`, `/effort high`, `/advisor opus`, `/compact`, `/clear`, and `/permission-mode auto` directly from your connected chat. Control the agent’s work with `/pause`, `/resume`, and `/snooze 2h`. Use [`/when-done-switch-to --model sonnet`](skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
+**Claude Code controls from chat.** Use `!model sonnet`, `!effort high`, `!advisor opus`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), and `!permission-mode auto` directly from your connected chat. Control the agent’s work with `!pause`, `!resume`, and `!snooze 2h`. Use [`/when-done-switch-to --model sonnet`](skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
 
 ## Extensions
 

@@ -3,9 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
 ### Changed
+- Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 - `apply-settings.ts` drops the retired `automode-seed` op, the legacy-conversion and minimal deny profiles, and the `allow` alias; `permissions-sync` and `deny standard|hardened|ask-only` are the remaining entry points.
 - A standing behavior the hermit proposes and the operator accepts is written to its owning skill or memory before the hermit confirms it, and the confirmation names where it lives; with no editable home the hermit says so instead of promising.
@@ -14,6 +16,12 @@
 - `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
 - Docker pairing confirmation notes it may take up to 1 min before the bot replies
 - Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
+
+### Upgrade Instructions
+
+Update saved chat instructions and shortcuts to use `!pause`, `!stop`, `!resume`, `!snooze`, `!status`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), `!model`, `!effort`, `!permission-mode`, and `!advisor`. `/`-prefixed chat commands no longer work. Preserve operator-authored content when updating installed instructions.
+
+Nothing extra to run for the binding store's allow-list entry: the unconditional `permissions-sync` step adds `Bash(bun */scripts/conversation.ts*)`.
 
 ## [1.3.6] - 2026-09-10
 
