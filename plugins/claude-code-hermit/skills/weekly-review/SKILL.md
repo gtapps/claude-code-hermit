@@ -34,7 +34,7 @@ Generates the weekly review for the current ISO week.
 <!-- weekly-review-consolidation-schema:start -->
 ```json
 {
-  "candidates": [ { "kind": "memory", "summary": "<durable fact, filed>", "row_ids": [12] } ],
+  "candidates": [ { "kind": "memory", "audience": "shared", "path": "<file written>", "summary": "<durable fact, filed>", "row_ids": [12] } ],
   "applied_row_ids": [12],
   "failed_row_ids": [],
   "reviewed_ids": [10, 11, 12, 13]
@@ -52,7 +52,7 @@ Generates the weekly review for the current ISO week.
    ```
    The excluded rows stay unconsolidated for next week's pass. If nothing failed, the set is exactly `reviewed_ids`.
 
-   Then, when `applied_row_ids` is non-empty, append **one** SHELL.md Findings line for the run naming the `candidates[].summary` of every candidate whose `row_ids` are in `applied_row_ids`. That line is the operator's audit trail for writes distilled from untrusted channel text, so it goes in even when nothing else about the week is notable. One line per run, never one per candidate. Skip it entirely when `applied_row_ids` is empty: nothing was filed, so there is nothing to audit.
+   Then, when `applied_row_ids` is non-empty, append **one** SHELL.md Findings line for the run naming the count of candidates filed and each `candidates[].path` of every candidate whose `row_ids` are in `applied_row_ids`. That line is the operator's audit trail for writes distilled from untrusted channel text, so it goes in even when nothing else about the week is notable. One line per run, never one per candidate. Skip it entirely when `applied_row_ids` is empty: nothing was filed, so there is nothing to audit.
 
    **Failure policy:** if `channel-log.ts` exits nonzero (a genuine DB error — not the normal "no DB yet" empty-result case), fail-open: skip the marking for this run and continue to step 5. An empty `reviewed_ids` (no unconsolidated rows) is the ordinary no-channel-activity case, not a failure.
 

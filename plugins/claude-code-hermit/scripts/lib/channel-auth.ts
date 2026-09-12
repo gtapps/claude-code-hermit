@@ -121,6 +121,31 @@ export function recallScope(config: Json, key: string, chatId: string): Json | n
   return { own, channel: ch.isolate_chats === false ? key : undefined, shared };
 }
 
+/**
+ * Whether a compiled page's `audience` is visible to a recallScope result.
+ * Absent / `shared` / an unscoped reader (null) are always visible. A tagged
+ * page is visible only when the pair matches `scope.own`, the key equals
+ * `scope.channel` (isolate_chats: false), or the pair is in `scope.shared`.
+ */
+export function audienceVisible(scope: Json | null | undefined, audience: unknown): boolean {
+  if (audience == null || audience === 'shared') return true;
+  if (scope == null) return true;
+  if (typeof audience !== 'string') return false;
+  const separator = audience.indexOf(':');
+  if (separator < 0) return false;
+  const key = audience.slice(0, separator);
+  const chatId = audience.slice(separator + 1);
+  if (!key || !chatId) return false;
+  if (scope.own?.source === key && String(scope.own.chat_id) === chatId) return true;
+  if (scope.channel && key === scope.channel) return true;
+  if (Array.isArray(scope.shared)) {
+    for (const entry of scope.shared) {
+      if (entry.source === key && String(entry.chat_id) === chatId) return true;
+    }
+  }
+  return false;
+}
+
 function passiveChats(config: Json, sourceKey: string): string[] {
   const chats = channelEntry(config, sourceKey)?.passive_chats;
   return Array.isArray(chats) ? chats : [];

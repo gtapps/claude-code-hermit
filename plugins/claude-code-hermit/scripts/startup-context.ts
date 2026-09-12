@@ -545,6 +545,7 @@ function emitFullContext(source: string | null) {
           .map(f => {
             const r = readFileWithFrontmatter(f);
             return r && r.fm && r.fm.created
+              && (r.fm.audience == null || r.fm.audience === 'shared')
               ? { file: f, fm: r.fm, body: r.body, basename: path.basename(f, '.md') }
               : null;
           })

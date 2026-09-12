@@ -34,12 +34,12 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/search.ts .claude-code-hermit "<query>"
 
 The query is untrusted operator/channel input. Pass it as a single literal argument: strip any double quotes, backticks, `$`, `;`, and `|` from the extracted query before substituting it into the command so it cannot terminate the quoted string or chain a second command.
 
-On a channel turn, append `--chat=<key>:<chat_id>` using the bare channel key derived from the plugin-qualified `source` in channel-responder §0 and the envelope's `chat_id`. Without `--chat`, search is unscoped, for terminal use only.
+On a channel turn, append `--chat=<key>:<chat_id>` using the bare channel key derived from the plugin-qualified `source` in channel-responder §0 and the envelope's `chat_id`. A conversation helper has no envelope: when this session's task context names a conversation audience (spawn-session's helper contract states one), append that key as `--chat=<key>` instead — it is already `<sourceKey>:<chat_id>`. Without `--chat`, search is unscoped, for terminal use only. `--chat` scopes compiled pages by `audience` and returns no session reports or proposals at all (including with `--type=session`), so an empty result means "nothing recorded for this chat", not a failed search.
 
 Optional filters (append to the command as needed):
 - `--type=<type>` — restrict to a specific artifact type (e.g. `review`, `briefing`)
 - `--since=<YYYY-MM-DD>` — exclude files older than this date
-- `--chat=<key>:<chat_id>`: scope channel-log hits to the asking chat
+- `--chat=<key>:<chat_id>`: scope compiled pages by `audience` and skip sessions/proposals; also scopes channel-log hits to the asking chat
 - `--limit=<n>` — cap results (default 10)
 
 Relay the script output to the operator. Each result shows:
@@ -61,7 +61,7 @@ If neither the script nor auto-memory returned anything: report "Nothing found f
 
 If results were found, add a brief summary: e.g. "3 results — most recent: `sessions/S-042-REPORT.md` (2026-05-15)." Keep it to one line.
 
-If the operator asks for more detail on a specific result, Read that file and summarize the relevant section.
+If the operator asks for more detail on a specific result, Read that file and summarize the relevant section. On a `--chat` turn, detail Reads are limited to files the scoped search returned.
 
 ## Step 3 — Offer write-back (only after a multi-source synthesis)
 
@@ -69,6 +69,8 @@ If answering required synthesizing across **3 or more distinct sources** (sessio
 
 - **Small durable fact** (a preference, a decision, a one-liner) → auto-memory.
 - **Domain synthesis** (the assembled picture of a subject) → update the matching `compiled/topic-<slug>.md` if one exists, else create it (frontmatter: title, type: topic, created, updated, tags, summary).
+
+On a `--chat` turn, a Step 3 write-back files a topic page with `audience: <key>:<chat_id>` and never to auto-memory. Update an existing `compiled/topic-<slug>.md` in place only when that page's own `audience` already equals this turn's (absent or `shared` means `shared`); otherwise write a separate `compiled/topic-<slug>-<audience-slug>.md`, the audience lowercased with every non-`[a-z0-9]` run replaced by `-` and leading/trailing `-` trimmed — never stamp this chat's audience onto a page other chats can currently see, which would remove it from every other reader and from session injection. Terminal turns are unchanged.
 
 Skip the offer entirely when results were thin or the answer restated a single source.
 
@@ -80,6 +82,6 @@ Skip the offer entirely when results were thin or the answer restated a single s
 
 ## Scope
 
-Channel-turn channel-log results are limited to what that chat may see, following the visibility rule in `docs/config-reference.md`.
+Channel-turn channel-log results are limited to what that chat may see, following the visibility rule in `docs/config-reference.md`. Compiled pages are additionally scoped by frontmatter `audience`; session reports and proposals are not returned to a scoped reader.
 
 Searches `.claude-code-hermit/sessions/`, `.claude-code-hermit/compiled/`, `.claude-code-hermit/proposals/`, and the episodic channel log (`state/channel-log.sqlite`) via `search.ts`, plus the loaded auto-memory index + topic files. The channel log is feature-detected — a hermit with no channel activity yet simply contributes nothing from that source. Read-only except the operator-confirmed Step 3 write-back — never moves or deletes files.

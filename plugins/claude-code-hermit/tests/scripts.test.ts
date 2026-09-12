@@ -4630,6 +4630,34 @@ describe('search', () => {
     }));
   }
 
+  const audienceCases: [string, object, string | null, string[]][] = [
+    ['scoped C1 sees neither tagged page nor session', { channels: { discord: {} } }, 'discord:C1', []],
+    ['scoped C2 sees the tagged page only', { channels: { discord: {} } }, 'discord:C2', ['topic-x']],
+    ['technical home sees page and session', { operator_profile: 'technical', channels: { discord: { default_chat_id: 'HOME' } } }, 'discord:HOME', ['topic-x', 'S-001']],
+    ['terminal sees page and session', {}, null, ['topic-x', 'S-001']],
+  ];
+  for (const [name, config, chat, expected] of audienceCases) {
+    test(`search --chat audience: ${name}`, withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), JSON.stringify(config));
+      fs.mkdirSync(hermit(dir, 'compiled'), { recursive: true });
+      fs.mkdirSync(hermit(dir, 'sessions'), { recursive: true });
+      write(hermit(dir, 'compiled', 'topic-x.md'),
+        '---\ntitle: Private topic\ntype: topic\naudience: discord:C2\ncreated: 2026-09-01T00:00:00+00:00\n---\naudscope tagged page');
+      write(hermit(dir, 'compiled', 'topic-open.md'),
+        '---\ntitle: Open topic\ntype: topic\ncreated: 2026-09-01T00:00:00+00:00\n---\naudscope open page');
+      write(hermit(dir, 'sessions', 'S-001-REPORT.md'),
+        '---\ntitle: Session one\nid: S-001\n---\naudscope session report');
+      const r = await runScript('search.ts', { args: [hermitPath, ...(chat ? [`--chat=${chat}`] : []), 'audscope'] });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe('');
+      expect(r.stdout).toContain('topic-open');
+      for (const token of expected) expect(r.stdout).toContain(token);
+      if (!expected.includes('topic-x')) expect(r.stdout).not.toContain('topic-x');
+      if (!expected.includes('S-001')) expect(r.stdout).not.toContain('S-001');
+    }));
+  }
+
   const runSearch = async (dir: string, query: string) => {
     const r = await runScript('search.ts', { args: [hermit(dir), query] });
     expect(r.exitCode).toBe(0);
@@ -5149,6 +5177,35 @@ describe('channel-log', () => {
     test('unknown subcommand -> exit 1', withDir(async (dir) => {
       const r = await runPinnedScript('channel-log.ts', hermit(dir), [hermit(dir), 'bogus']);
       expect(r.exitCode).toBe(1);
+    }));
+
+    test('list-unconsolidated stamps audience from shared_chats', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), JSON.stringify({
+        // 4242 numeric: chat ids in config are often unquoted (Telegram), and the
+        // DB column is TEXT — the stamp has to coerce like the SQL grant does.
+        channels: { discord: { shared_chats: ['C2', 4242] } },
+      }));
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'private row' });
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'shared row' });
+      logMessage(hermitPath, { source: 'discord', chat_id: '4242', direction: 'in', text: 'numeric shared row' });
+      const listed = await runPinnedScript('channel-log.ts', hermitPath, [hermitPath, 'list-unconsolidated']);
+      expect(listed.exitCode).toBe(0);
+      const rows = JSON.parse(listed.stdout.trim());
+      const byChat = Object.fromEntries(rows.map((r: { chat_id: string; audience: string }) => [r.chat_id, r.audience]));
+      expect(byChat.C1).toBe('discord:C1');
+      expect(byChat.C2).toBe('shared');
+      expect(byChat['4242']).toBe('shared');
+    }));
+
+    test('list-unconsolidated with no config tags every row as own audience', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'a' });
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'b' });
+      const listed = await runPinnedScript('channel-log.ts', hermitPath, [hermitPath, 'list-unconsolidated']);
+      expect(listed.exitCode).toBe(0);
+      const rows = JSON.parse(listed.stdout.trim());
+      expect(rows.map((r: { audience: string }) => r.audience).sort()).toEqual(['discord:C1', 'discord:C2']);
     }));
 
     test('list-unconsolidated -> mark-consolidated roundtrip through the CLI', withDir(async (dir) => {

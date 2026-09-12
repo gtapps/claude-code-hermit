@@ -13,6 +13,8 @@
 
 import { unconsolidated, markConsolidated, prune } from './lib/channel-log';
 import { pinStateDirOrExit } from './lib/cc-compat';
+import { channelEntry } from './lib/channel-auth';
+import { readConfigRaw } from './lib/config-read';
 
 function fail(message: string): never {
   process.stderr.write(`channel-log: ${message}\n`);
@@ -41,7 +43,18 @@ if (import.meta.main) {
     const before = beforeArg ? beforeArg.slice('--before='.length) : undefined;
     const result = unconsolidated(hermitDir, before);
     if (!result.ok) fail(result.error || 'list-unconsolidated failed');
-    process.stdout.write(JSON.stringify(result.rows) + '\n');
+    const config = readConfigRaw(hermitDir);
+    const rows = result.rows.map((row) => {
+      const shared = channelEntry(config, row.source)?.shared_chats;
+      // String(): chat ids in config may be numbers (Telegram), while the DB
+      // column is TEXT. The channel-log SQL grant and audienceVisible both
+      // coerce, so this stamp has to as well or a shared chat reads private.
+      const audience = Array.isArray(shared) && shared.map(String).includes(row.chat_id)
+        ? 'shared'
+        : `${row.source}:${row.chat_id}`;
+      return { ...row, audience };
+    });
+    process.stdout.write(JSON.stringify(rows) + '\n');
     process.exit(0);
   }
 
