@@ -15,7 +15,8 @@ The calling skill passes `plugin_root` (the resolved absolute plugin path) in th
 
 - Run `bun <plugin_root>/scripts/channel-log.ts .claude-code-hermit list-unconsolidated` and
   parse its JSON stdout — an array of `{ id, ts, source, chat_id, direction, sender, message_id, text,
-  consolidated_at }` rows not yet promoted into the curated tiers.
+  consolidated_at, audience }` rows not yet promoted into the curated tiers. `audience` is
+  `"shared"` when the row's chat is in that channel's `shared_chats`, otherwise `"<source>:<chat_id>"`.
 - If the command exits nonzero, or the array is empty, return `{ "candidates": [], "applied_row_ids": [],
   "failed_row_ids": [], "reviewed_ids": [] }` and do nothing else — an empty result here is the ordinary
   case (no channel activity, or already caught up), not a failure.
@@ -30,10 +31,14 @@ mattered in the moment.
 
 For each durable item found, produce one candidate:
 - `kind: "memory"` — a small standalone fact or preference (a decision, a correction, a one-liner).
+  Allowed only for a candidate whose `audience` is `shared` (auto-memory is loaded by every session
+  and carries no audience). A non-`shared` row files only as `kind: "compiled"`.
 - `kind: "compiled"` — part of a larger synthesis that belongs in a `compiled/topic-<slug>.md` page
   (existing or new).
 - `summary` — the distilled fact/synthesis itself, phrased ready to file (not a copy of the raw text).
 - `row_ids` — the id(s) of the row(s) that support this candidate.
+- `audience` — the rows' `audience`. Rows with different `audience` values never support one candidate;
+  split them.
 
 Every row you examined — whether or not it produced a candidate — goes in `reviewed_ids`. A row with
 nothing durable in it is still "reviewed": include its id in `reviewed_ids` so it isn't re-examined
@@ -61,10 +66,15 @@ File each candidate through the same governance the rest of this plugin uses:
   one, and leave the index line alone. `MEMORY.md` is silently truncated past 200 lines / 25 KB, so
   if adding pointers would cross either limit, file the memory files but stop adding index lines
   and say so in the `summary` — a truncated index loses entries that are already there.
-- `kind: "compiled"` → update or create `.claude-code-hermit/compiled/topic-<slug>.md`, with the
-  frontmatter the `topic` entry of `.claude-code-hermit/knowledge-schema.md` specifies (that file
-  is this hermit's own contract for what it produces, and the operator may have edited it).
-  Update in place when the page exists: a topic page is a living document, not an append log.
+- `kind: "compiled"` → write `audience: <value>` in frontmatter (the exact audience lives only
+  there). Update an existing `.claude-code-hermit/compiled/topic-<slug>.md` only when that page's
+  `audience` equals the candidate's (absent `audience` means `shared`). Otherwise create
+  `compiled/topic-<slug>-<audience-slug>.md`. A `shared` compiled candidate keeps today's
+  `topic-<slug>.md` name. `<audience-slug>` is the audience lowercased with every non-`[a-z0-9]`
+  run replaced by `-` and leading/trailing `-` trimmed (the same character-class replacement
+  `skills/spawn-session/SKILL.md` uses for helper names). Frontmatter otherwise follows the
+  `topic` entry of `.claude-code-hermit/knowledge-schema.md`. A topic page is a living document,
+  not an append log.
 
 Record the outcome per candidate:
 - filed cleanly → its `row_ids` go in `applied_row_ids`
@@ -90,7 +100,7 @@ there's nothing to report, never omit a key.
 <!-- weekly-review-consolidation-schema:start -->
 ```json
 {
-  "candidates": [ { "kind": "memory", "summary": "<durable fact, filed>", "row_ids": [12] } ],
+  "candidates": [ { "kind": "memory", "audience": "shared", "path": "<file written>", "summary": "<durable fact, filed>", "row_ids": [12] } ],
   "applied_row_ids": [12],
   "failed_row_ids": [],
   "reviewed_ids": [10, 11, 12, 13]
@@ -98,6 +108,8 @@ there's nothing to report, never omit a key.
 ```
 <!-- weekly-review-consolidation-schema:end -->
 
+`path` is the file actually written: relative to the state dir for compiled, absolute for memory.
+
 The main session marks `reviewed_ids` minus `failed_row_ids` consolidated via
-`channel-log.ts mark-consolidated`, prunes, and logs your `candidates` summaries as the operator's
-audit trail. See SKILL.md for that sequence.
+`channel-log.ts mark-consolidated`, prunes, and logs your `candidates` count and paths as the
+operator's audit trail. See SKILL.md for that sequence.

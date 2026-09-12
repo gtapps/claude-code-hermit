@@ -10,6 +10,7 @@
 ### Changed
 - Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
 - Chat-scoped `/recall` with `isolate_chats` and `shared_chats`; the technical-profile home chat, maintainer chat, and terminal remain unscoped.
+- Compiled pages carry `audience`; a chat not in `shared_chats` files only to its own page, not auto-memory, and scoped `/recall` skips other chats' pages, session reports, and proposals.
 - `channels.<name>.log_chats` records or skips one channel regardless of the global switch.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
@@ -31,6 +32,8 @@
 Update saved chat instructions and shortcuts to use `!pause`, `!stop`, `!resume`, `!snooze`, `!status`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), `!model`, `!effort`, `!permission-mode`, and `!advisor`. `/`-prefixed chat commands no longer work. Preserve operator-authored content when updating installed instructions.
 
 Nothing extra to run for the binding store's allow-list entry: the unconditional `permissions-sync` step adds `Bash(bun */scripts/conversation.ts*)`.
+
+Open `.claude-code-hermit/knowledge-schema.md`. If the `- topic:` bullet's Frontmatter list does not include `audience`, add `optional audience` (`shared` or `<key>:<chat_id>`) to that list. Skip when it already names `audience`. Existing compiled pages need no edit: an absent field means `shared`.
 
 ## [1.3.6] - 2026-09-10
 
