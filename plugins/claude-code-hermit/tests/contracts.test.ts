@@ -385,6 +385,29 @@ const BASE_CONFIG = {
 
 const runValidate = (overrides: any) => validate({ ...BASE_CONFIG, ...overrides });
 
+describe('channel audience keys validation', () => {
+  for (const [key, value] of [['isolate_chats', 'yes'], ['log_chats', 1], ['shared_chats', 'C1'], ['operators', '1'], ['shared_chats', [1]], ['operators', [1]]]) {
+    test(`rejects invalid ${key} ${JSON.stringify(value)}`, () => {
+      expect(runValidate({ channels: { discord: { [key as string]: value } } }).errors.some(
+        (error: string) => error.includes(`channels.discord.${key}:`),
+      )).toBe(true);
+    });
+  }
+  test('valid shapes pass', () => {
+    expect(runValidate({ channels: { discord: { isolate_chats: false, log_chats: true, shared_chats: ['C1'], operators: ['1'], allowed_users: ['1'] } } }).errors).toEqual([]);
+  });
+  test('sharing maintainer chat warns without errors', () => {
+    const out = runValidate({ channels: { discord: { shared_chats: ['MAINT'], maintainer_channel_id: 'MAINT' } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings.some((warning: string) => warning.includes('shared_chats'))).toBe(true);
+  });
+  test('operator outside allowed users warns without errors', () => {
+    const out = runValidate({ channels: { discord: { operators: ['1'], allowed_users: ['2'] } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings.some((warning: string) => warning.includes('operators'))).toBe(true);
+  });
+});
+
 describe('passive chats validation', () => {
   test('accepts string chat ids and rejects other shapes', () => {
     expect(runValidate({ channels: { discord: { passive_chats: ['123'] } } }).errors).toEqual([]);

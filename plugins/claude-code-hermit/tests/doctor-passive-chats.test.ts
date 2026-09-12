@@ -62,3 +62,18 @@ test('no passive chats is ok; unsupported channel cannot be verified', () => {
     expect(checkPassiveChats(paths).detail).toContain('could not verify');
   } finally { wd.cleanup(); }
 });
+
+
+test('passive chats warn when their channel is unrecorded', () => {
+  const wd = setupWorkdir();
+  const paths = resolvePaths(path.join(wd.dir, '.claude-code-hermit'), path.resolve(import.meta.dir, '..'));
+  try {
+    for (const [global, override, warns] of [[true, false, true], [false, undefined, true], [false, true, false]] as const) {
+      fs.writeFileSync(paths.configPath, JSON.stringify({ knowledge: { channel_log_enabled: global }, channels: { discord: { passive_chats: ['1', '2'], log_chats: override } } }));
+      const result = checkPassiveChats(paths);
+      expect(result.detail.includes('log_chats: true')).toBe(warns);
+      expect(result.detail.includes('channel_log_enabled')).toBe(warns);
+      expect(result.detail.match(/log_chats: true/g)?.length ?? 0).toBe(warns ? 1 : 0);
+    }
+  } finally { wd.cleanup(); }
+});

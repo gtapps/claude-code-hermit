@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
+import { channelEntry } from './channel-auth';
 
 type Json = any;
 
@@ -86,11 +87,13 @@ function openDb(hermitDir: string, opts?: { readonly?: boolean; busyTimeoutMs?: 
 }
 
 /**
- * Default-on gate for episodic capture: config.knowledge.channel_log_enabled.
+ * Per-channel log_chats overrides the default-on knowledge.channel_log_enabled gate.
  * Shared by channel-hook.ts (outbound) and the channel-reply-reminder stage (inbound)
  * so the "only an explicit false disables capture" rule lives in one place.
  */
-function isLoggingEnabled(config: Json): boolean {
+function isLoggingEnabled(config: Json, source?: string): boolean {
+  const override = source ? channelEntry(config, source)?.log_chats : undefined;
+  if (typeof override === 'boolean') return override;
   return config?.knowledge?.channel_log_enabled !== false;
 }
 
@@ -195,10 +198,11 @@ function buildMatchExpr(terms: string[]): string {
 /**
  * Full-text search over the channel log. Returns [] (not an error) when the
  * DB doesn't exist yet — this is the feature-detect path search.ts relies on.
- * @param {object} [opts] - { since?: ISO date string, type?: string, limit?: number }
+ * @param {object} [opts] - { since?: ISO date string, type?: string, limit?: number, scope?: { own: {source, chat_id}, channel?: string, shared: {source, chat_id}[] } }
  */
 function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[] {
   const o = opts || {};
+  if (o.scope && (!o.scope.own?.source || !o.scope.own?.chat_id)) return [];
   // A type filter that isn't 'channel' can never match rows from this source.
   if (o.type && o.type !== 'channel') return [];
   if (!terms || terms.length === 0) return [];
@@ -218,13 +222,26 @@ function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[
       // Params mirror the SQL fragment's `since` branch — push in bind order.
       const params: (string | number)[] = [matchExpr];
       if (sinceIso) params.push(sinceIso);
+      let scopeSql = '';
+      if (o.scope) {
+        const pairs = [o.scope.own, ...o.scope.shared];
+        const clauses = pairs.map((pair) => {
+          params.push(pair.source, pair.chat_id);
+          return '(m.source = ? AND m.chat_id = ?)';
+        });
+        if (o.scope.channel) {
+          clauses.push('m.source = ?');
+          params.push(o.scope.channel);
+        }
+        scopeSql = ` AND (${clauses.join(' OR ')})`;
+      }
       params.push(limit);
 
       return db
         .query(
           `SELECT m.id, m.ts, m.source, m.chat_id, m.direction, m.sender, m.message_id, m.text, m.consolidated_at
            FROM messages_fts f JOIN messages m ON m.id = f.rowid
-           WHERE messages_fts MATCH ?${sinceIso ? ' AND m.ts >= ?' : ''}
+           WHERE messages_fts MATCH ?${sinceIso ? ' AND m.ts >= ?' : ''}${scopeSql}
            ORDER BY rank LIMIT ?`
         )
         .all(...params) as ChannelRow[];

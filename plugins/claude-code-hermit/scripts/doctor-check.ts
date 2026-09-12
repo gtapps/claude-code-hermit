@@ -1,3 +1,4 @@
+import { isLoggingEnabled } from './lib/channel-log';
 import { markerOnward } from './evolve-plan';
 // Fail-open: a failing check records "fail" in its own entry; the orchestrator
 // never crashes and the process always exits 0.
@@ -1881,6 +1882,9 @@ function checkPassiveChats(p: DoctorPaths = PATHS) {
     const warnings: string[] = [];
     for (const [name, channel] of Object.entries<Json>(config?.channels ?? {})) {
       if (!Array.isArray(channel?.passive_chats) || !channel.passive_chats.length) continue;
+      if (!isLoggingEnabled(config, name)) {
+        warnings.push(`${name}: set log_chats: true for this channel or enable channel_log_enabled to record passive chats`);
+      }
       // Both halves of the wake gate, outside the access.json try so a state-dir
       // problem can't hide them. Without an identity no mention can ever match and
       // the chat is silently dead; without a list every member's mention wakes it.

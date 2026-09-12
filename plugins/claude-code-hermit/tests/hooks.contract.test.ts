@@ -378,6 +378,17 @@ describe('channel-hook', () => {
     expect(rows[0]).toMatchObject({ source: 'discord', chat_id: '999', direction: 'out', text: 'hi from bot' });
   }));
 
+  for (const logging of [true, false]) {
+    test(`channel-hook log_chats overrides global ${logging}`, withDir(async dir => {
+      write(hermit(dir, 'config.json'), JSON.stringify({ knowledge: { channel_log_enabled: logging }, channels: { discord: { log_chats: !logging } } }));
+      for (const source of ['discord', 'telegram']) {
+        const r = await runScript('channel-hook.ts', { stdin: JSON.stringify({ tool_name: `mcp__${source}__reply`, tool_input: { chat_id: '999', text: 'hello' } }), cwd: dir });
+        expect(r.exitCode).toBe(0);
+      }
+      expect(unconsolidated(hermit(dir)).rows.map(row => row.source)).toEqual([logging ? 'telegram' : 'discord']);
+    }));
+  }
+
   test('channel-hook (capture: channel_log_enabled:false -> no DB created)', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"knowledge":{"channel_log_enabled":false}}');
     await runScript('channel-hook.ts', {
@@ -1627,6 +1638,17 @@ describe('channel-reply-reminder', () => {
     await run('<channel source="discord" chat_id="123" user="ANYONE">no</channel>', dir);
     expect(unconsolidated(hermit(dir)).rows.length).toBe(0);
   }));
+
+  for (const logging of [true, false]) {
+    test(`channel-reply-reminder log_chats overrides global ${logging}`, withDir(async dir => {
+      write(hermit(dir, 'config.json'), JSON.stringify({ knowledge: { channel_log_enabled: logging }, channels: { discord: { log_chats: !logging } } }));
+      for (const source of ['discord', 'telegram']) {
+        const r = await run(`<channel source="${source}" chat_id="123" user="U1">hello</channel>`, dir);
+        expect(r.exitCode).toBe(0);
+      }
+      expect(unconsolidated(hermit(dir)).rows.map(row => row.source)).toEqual([logging ? 'telegram' : 'discord']);
+    }));
+  }
 
   test('channel-reply-reminder (capture: channel_log_enabled:false -> no DB created at all)', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"knowledge":{"channel_log_enabled":false}}');

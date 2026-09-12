@@ -242,18 +242,23 @@ Skip this step if the current channel is `imessage`, or if `access.json` is not 
    - Options: `"Yes — add a channel"` (discord) / `"Yes — add a group"` (telegram) with ID captured via `Other`; `"Skip — DMs only"`.
 2. If **Skip**: continue to §7.
 3. **For each ID provided** (the first ID comes from step 1's `Other`; each subsequent ID from step 3c's `Other` — loop until "Done"):
-   a. Ask with `AskUserQuestion` (header: `"Mention required"`) for this ID:
-      - `"Yes — require @mention"` (default — safer for noisy channels)
-      - `"No — respond to all messages"`
+   a. Ask both questions for this ID in one `AskUserQuestion` call (the option marked `(default)` is the Recommended pre-selection):
+
+      | Header | Question | Options (`label`: description) |
+      |---|---|---|
+      | Mention required | Require an @mention for this chat? | `Yes, require @mention`: safer for noisy channels (default) / `No, respond to all messages`: respond without a mention |
+      | Shared history | Let every other chat recall what is said here? | `No, private to this chat`: keep this chat's history private (default) / `Yes, shared with every chat`: let any chat on any channel recall this one |
+
+      Shared means any chat on any channel can recall what is said here.
    b. Run the slash command directly, with the state-dir hint (same pattern as §6b):
-      - With `"Yes — require @mention"`: `/<channel>:access group add <channelId> — save access.json to <state_dir>/, not ~/.claude`
-      - With `"No — respond to all messages"`: `/<channel>:access group add <channelId> --no-mention — save access.json to <state_dir>/, not ~/.claude`
+      - With `"Yes, require @mention"`: `/<channel>:access group add <channelId> — save access.json to <state_dir>/, not ~/.claude`
+      - With `"No, respond to all messages"`: `/<channel>:access group add <channelId> --no-mention — save access.json to <state_dir>/, not ~/.claude`
       After the respond-to-all command, ask once with `AskUserQuestion`: "Record the chat but wake only on @mention (passive)?" Options: **Yes**, **No**.
-      Read the current `channels.<channel>.passive_chats` array (absent means `[]`). On Yes, include this chat id once; on No, remove it. Preserve every other id. Merge the **full resulting array** with the same `hatch-config.ts --reinit` flow used above:
+      Read the current `channels.<channel>.passive_chats` and `channels.<channel>.shared_chats` arrays (absent means `[]`). For passive, on Yes include this chat id once; on No remove it; if the passive question was not asked, preserve that array. For Shared history, on Yes include this chat id once; on No remove it. Preserve every other id in both arrays. After the access command, merge both **full resulting arrays** with the same `hatch-config.ts --reinit` flow used above:
       ```bash
-      echo '{"channels":{"<channel>":{"passive_chats":<full_array>}}}' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-config.ts "$(pwd)" --reinit >/dev/null
+      echo '{"channels":{"<channel>":{"passive_chats":<full_passive_array>,"shared_chats":<full_shared_array>}}}' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-config.ts "$(pwd)" --reinit >/dev/null
       ```
-      Substitute the actual channel key and JSON string array. Never use Edit/Write on `config.json`. Stop on a non-zero merge exit as in Adding an entry. Repeating the same answers must leave the array unchanged.
+      Substitute the actual channel key and JSON string arrays. Never use Edit/Write on `config.json`. Stop on a non-zero merge exit as in Adding an entry. Repeating the same answers must leave the arrays unchanged.
       On Yes, confirm the group's `allowFrom` is empty in the plugin settings so every member's messages can be recorded. Explain these facts in the operator's language:
       - The plugin-global `ackReaction` reacts to every member's message; `/<channel>:access set ackReaction ""` removes it.
       - Discord threads follow the channel; forum channels are unsupported. Denying Create Public/Private Threads is the zero-code alternative.
