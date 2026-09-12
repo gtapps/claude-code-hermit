@@ -116,8 +116,8 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/channel-send.ts*)',
   // The binding store's only writer. channel-responder, watch and session-start all
   // reach for it on an ordinary inbound message, with no operator present to answer
-  // a prompt; the script validates its own key and verbs, so the grant confers
-  // nothing the callers don't already have.
+  // a prompt; the script validates its own key and verbs and pins its state dir
+  // because thread-create reads the bot token.
   'Bash(bun */scripts/conversation.ts*)',
   'Bash(bun */scripts/session-archive.ts*)',
   'Bash(bun */scripts/routines.ts precheck*)',

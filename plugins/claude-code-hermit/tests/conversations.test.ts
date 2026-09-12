@@ -46,8 +46,11 @@ test('prune preserves empty or unparsable input and matches stable session ids o
   expect(lookup(dir, key)?.status).toBe('parked');
 });
 
+// AGENT_DIR is applied last so an ambient one from the shell running the suite can
+// never outrank the fixture dir and trip the state-dir pin; a caller that wants a
+// mismatch sets AGENT_DIR in `env` explicitly.
 async function cli(dir: string, args: string[], env?: typeof process.env) {
-  const child = Bun.spawn([process.execPath, path.resolve(import.meta.dir, '../scripts/conversation.ts'), dir, ...args], { stdout: 'pipe', stderr: 'pipe', ...(env ? { env } : {}) });
+  const child = Bun.spawn([process.execPath, path.resolve(import.meta.dir, '../scripts/conversation.ts'), dir, ...args], { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...env, AGENT_DIR: env?.AGENT_DIR ?? dir } });
   const [stdout, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
   return { stdout, code };
 }
@@ -93,7 +96,7 @@ test('keyless verbs wrap the channel library calls', async () => {
     if (route === '/channels/123/messages/9/threads' && req.method === 'POST') return Response.json({ id: '789' });
     return new Response('', { status: 404 });
   } });
-  const env = { ...process.env, HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, ''), DISCORD_STATE_DIR: tokenDir };
+  const env = { HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, ''), DISCORD_STATE_DIR: tokenDir };
   const run = (...args: string[]) => cli(dir, args, env);
   try {
     const history = await run('history', '--source', 'discord', '--chat-id', '123', '--limit', '2');
@@ -113,4 +116,48 @@ test('keyless verbs wrap the channel library calls', async () => {
   } finally {
     server.stop(true);
   }
+});
+
+test("state dir must be this project's before reads or Discord requests", async () => {
+  const ownDir = freshDir();
+  const foreignDir = freshDir();
+  expect(foreignDir).not.toBe(ownDir);
+  const tokenDir = path.join(foreignDir, 'discord');
+  fs.mkdirSync(tokenDir, { recursive: true });
+  fs.writeFileSync(path.join(tokenDir, '.env'), 'DISCORD_BOT_TOKEN=test-token\n');
+  // config.json plus state/ is a real foreign hermit root. Without state/ it reads
+  // as a worktree projection, and the refusal would come from the walk-up rather
+  // than the equality check this pins.
+  fs.mkdirSync(path.join(foreignDir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(foreignDir, 'config.json'), JSON.stringify({
+    channels: { discord: { state_dir: tokenDir } },
+  }));
+  let requests = 0;
+  const server = Bun.serve({ port: 0, fetch() {
+    requests += 1;
+    return Response.json({ id: '789' });
+  } });
+  const env = { AGENT_DIR: ownDir, HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, ''), DISCORD_STATE_DIR: tokenDir };
+  try {
+    expect(await cli(foreignDir, ['list'], env)).toEqual({ stdout: '', code: 1 });
+    expect(await cli(foreignDir, ['thread-create', '--chat-id', '123', '--message-id', '9', '--name', 'x'], env)).toEqual({ stdout: '', code: 1 });
+    expect(requests).toBe(0);
+  } finally {
+    server.stop(true);
+  }
+});
+
+// The production shape every skill uses: the literal `.claude-code-hermit` resolved
+// against the project root, with no AGENT_DIR. The pin must not reject it.
+test('the literal .claude-code-hermit from the project root passes the pin', async () => {
+  const root = freshDir();
+  const hermit = path.join(root, '.claude-code-hermit');
+  fs.mkdirSync(path.join(hermit, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(hermit, 'config.json'), '{}');
+  const env = { ...process.env };
+  delete env.AGENT_DIR;
+  delete env.CLAUDE_PROJECT_DIR;
+  const child = Bun.spawn([process.execPath, path.resolve(import.meta.dir, '../scripts/conversation.ts'), '.claude-code-hermit', 'list'], { cwd: root, stdout: 'pipe', stderr: 'pipe', env });
+  const [stdout, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  expect({ stdout, code }).toEqual({ stdout: '{}\n', code: 0 });
 });
