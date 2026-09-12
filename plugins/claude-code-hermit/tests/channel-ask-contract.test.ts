@@ -16,7 +16,9 @@
 // asks for. Coverage note: this is a static string/regex scan, so an ask phrased
 // without a leading `Ask` token or the literal `AskUserQuestion` (e.g. "prompt the
 // operator …") would slip through; it also asserts only that the marker is
-// present, not that every ask is wired through the bridge.
+// present, not that every ask is wired through the bridge. A sentence forbidding
+// the tool ("Never call AskUserQuestion") is stripped before the scan, so only a
+// prohibition spelled in those verbs is recognised as one.
 //
 // Usage: bun test tests/channel-ask-contract.test.ts   (from the plugin root)
 
@@ -33,6 +35,10 @@ const CHANNEL_TAG_FRAGMENT = '<channel source="';
 // prose form (`Ask what to add`, `Ask the operator …`). The `(?::|\s)` after `Ask`
 // keeps `Asking`/`Asks` from matching.
 const UNGUARDED_ASK_RE = /^\s*(?:\d+\.\s*|[a-z]\d*\.\s*|-\s*)?Ask(?::|\s)/m;
+// A skill that forbids the tool is strengthening this contract, not breaking
+// it, so prohibitions are stripped before the call scan below. Without this a
+// sentence like "Never call AskUserQuestion" reads as an unguarded ask.
+const PROHIBITION_RE = /\b(?:Never|Do not|Don't)\s+(?:call|use|invoke)\s+AskUserQuestion\b/g;
 
 // Skills exempt from the "must bridge or have no ask" rule, with the reason
 // each is exempt spelled out — this list is a deliberate exception, not a
@@ -73,7 +79,7 @@ describe('channel-ask contract: every channel-reachable skill guards its asks', 
 
     test(`${name}/SKILL.md has no unguarded ask (or carries the Step-0 marker)`, () => {
       const content = skillContent.get(name)!;
-      const hasAskUserQuestion = content.includes('AskUserQuestion');
+      const hasAskUserQuestion = content.replace(PROHIBITION_RE, '').includes('AskUserQuestion');
       const hasUnguardedAskLine = UNGUARDED_ASK_RE.test(content);
       const hasMarker = content.includes(STEP0_MARKER);
 
