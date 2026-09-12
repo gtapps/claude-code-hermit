@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.6-green.svg" alt="Version 1.3.6" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.7-green.svg" alt="Version 1.3.7" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -13,7 +13,7 @@ If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea 
 
 Hermit is a Claude Code plugin that runs an always-on agent on your machine or server, for you or your team. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. Between requests, it checks those responsibilities, carries progress across sessions, and reaches you when something needs attention.
 
-Hermit runs inside Claude Code. Connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
+Hermit is a **Claude Code always-on instance**, that means you can run on your **subscription**, connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code agent" />

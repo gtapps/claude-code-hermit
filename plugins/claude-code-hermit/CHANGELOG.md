@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.7] - 2026-09-12
 
 ### Added
 - The hermit can check on something later from any chat, with or without a command; it looks once when due and replies in that chat.
