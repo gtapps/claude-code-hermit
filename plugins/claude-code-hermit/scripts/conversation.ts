@@ -1,4 +1,5 @@
 import { isTrustedController } from './lib/channel-auth';
+import { pinStateDirOrExit } from './lib/cc-compat';
 import { createThread, isThreadType, lookupChat } from './lib/channel-chats';
 import { conversationHistory } from './lib/channel-log';
 import { readSettledConfig } from './lib/config-read';
@@ -19,8 +20,12 @@ function options(args: string[]): Record<string, string> {
 }
 
 async function main(): Promise<void> {
-  const [dir, verb, key, ...args] = process.argv.slice(2);
-  if (!dir || !verb) throw new Error('usage');
+  const [argvDir, verb, key, ...args] = process.argv.slice(2);
+  if (!argvDir || !verb) throw new Error('usage');
+  // The sealed grant covers every argument, so pin the state dir before any verb.
+  // thread-create reads the bot token from that dir.
+  // See cc-compat.ts for the shared project pin.
+  const dir = pinStateDirOrExit(argvDir, 'conversation.ts');
   if (verb === 'prune') {
     if (key) throw new Error('invalid-options');
     prune(dir, await Bun.stdin.text());
