@@ -226,7 +226,7 @@ For bare-tmux setups, Hermit scopes channel config to `.claude.local/channels/<n
 
 The `cost-tracker` hook tracks spend automatically. For detailed token optimization settings, budgets, and env config, see [Always-On Setup: Cost Management](always-on.md#cost-management).
 
-Quick summary: set per-session budgets with `/hermit-settings budget` (warns at 80%, recommends closing at 100%) and project-level budgets in OPERATOR.md.
+Quick summary: set installation-wide daily, weekly, and monthly USD caps in the `budget` block of `config.json` (warns once at 80%; at 100% it alerts, or pauses the resident until the window resets, per `budget.action`) and project-level budgets in OPERATOR.md.
 
 ### Cheap always-on
 
