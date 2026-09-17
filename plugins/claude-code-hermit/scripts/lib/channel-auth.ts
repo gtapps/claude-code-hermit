@@ -72,6 +72,22 @@ export function isAllowedSender(config: Json, source: string, userId: string | n
 }
 
 /**
+ * Whether `chatId` is this channel's pinned home (`default_chat_id`, falling
+ * back to the learned `dm_channel_id`) — the chat `isTrustedController` trusts
+ * by default with no explicit `allowed_users`, and the chat a bound-conversation
+ * harness command leaves with the resident instead of routing to its helper.
+ *
+ * `||`, not `??`: an empty-string pin must not mask a working dm_channel_id and
+ * lock the operator out of control entirely. Truthiness on both sides so a pair
+ * of empty values can never match either.
+ */
+export function isHomeChat(config: Json, source: string, chatId: string | null): boolean {
+  const ch = channelEntry(config, source);
+  const home = ch?.default_chat_id || ch?.dm_channel_id;
+  return !!home && !!chatId && String(home) === String(chatId);
+}
+
+/**
  * Stricter gate for state-mutating (pause/resume/snooze) and disclosure (status)
  * paths. An explicit allowed_users list still wins — but when none is configured
  * this does NOT fall back to accept-all (as isAllowedSender does). Instead it
@@ -98,11 +114,7 @@ export function isTrustedController(
   if (Array.isArray(ch?.allowed_users)) {
     return isAllowedSender(config, source, userId); // explicit list (incl. [] lockdown) wins
   }
-  // `||`, not `??`: an empty-string pin must not mask a working dm_channel_id and
-  // lock the operator out of control entirely. Truthiness on both sides so a pair
-  // of empty values can never match either.
-  const home = ch?.default_chat_id || ch?.dm_channel_id; // no list -> pinned-home binding
-  return !!home && !!chatId && String(home) === String(chatId);
+  return isHomeChat(config, source, chatId); // no list -> pinned-home binding
 }
 
 // Home/maintainer rule has its prose twin in channel-responder §1c.

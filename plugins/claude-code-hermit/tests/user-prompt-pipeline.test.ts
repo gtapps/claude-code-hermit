@@ -671,18 +671,76 @@ describe('conversation commands', () => {
       expect(result.stdout).toContain(`[conversation command: ${body.slice(1)}]`);
     });
   }
-  for (const body of ['!model sonnet', '!effort high']) {
-    test(`refuses ${body} before the harness recorder`, async () => {
+  for (const [body, harnessCommand] of [['!model sonnet', '/model sonnet'], ['!effort high', '/effort high']] as const) {
+    test(`routes ${body} to the helper in a bound non-home chat`, async () => {
       const wd = setupChannelWorkdir();
-      writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test' });
-      bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
-      const result = await run(wd, body, 'http://127.0.0.1:1');
+      bind(hermit(wd.dir), 'telegram:999', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+      const result = await runScript('user-prompt-pipeline.ts', {
+        stdin: JSON.stringify({ prompt: envelope(body, 'u1', '999') }),
+        cwd: wd.dir,
+        env: { HERMIT_TELEGRAM_API_URL: 'http://127.0.0.1:1' },
+      });
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('[conversation command refused: per-conversation model/effort not supported]');
+      expect(result.stdout).toContain(`[conversation command: harness ${harnessCommand}]`);
       expect(result.stdout).not.toContain('[harness-command]');
       expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
     });
   }
+  test('routes to the helper on a channel with no allowed_users list', async () => {
+    // Accept-all is what hatch writes when the operator skips access control, and
+    // there isTrustedController reduces to the pinned-home binding — so gating this
+    // branch on it would make it unsatisfiable exactly where it must still work.
+    const wd = setupChannelWorkdir({ allowed_users: undefined });
+    bind(hermit(wd.dir), 'telegram:999', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    const result = await runScript('user-prompt-pipeline.ts', {
+      stdin: JSON.stringify({ prompt: envelope('!model sonnet', 'u1', '999') }),
+      cwd: wd.dir,
+      env: { HERMIT_TELEGRAM_API_URL: 'http://127.0.0.1:1' },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('[conversation command: harness /model sonnet]');
+    expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
+  });
+  test('routes !permission-mode to the helper for a trusted sender', async () => {
+    const wd = setupChannelWorkdir(); // allowed_users: ['u1'] — the list makes u1 trusted anywhere
+    bind(hermit(wd.dir), 'telegram:999', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    const result = await runScript('user-prompt-pipeline.ts', {
+      stdin: JSON.stringify({ prompt: envelope('!permission-mode auto', 'u1', '999') }),
+      cwd: wd.dir,
+      env: { HERMIT_TELEGRAM_API_URL: 'http://127.0.0.1:1' },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('[conversation command: harness /permission-mode auto]');
+    expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
+  });
+  test('!permission-mode needs a trusted sender, unlike the other helper commands', async () => {
+    // Accept-all admits anyone the channel delivers, which is enough authority for
+    // the commands prose steering could reach anyway (model, effort, compact, clear,
+    // advisor) but not for the helper's permission mode. The pane facts are present,
+    // so the trust gate is the only thing that can refuse this.
+    const wd = setupChannelWorkdir({ allowed_users: undefined });
+    writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test' });
+    bind(hermit(wd.dir), 'telegram:999', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    const result = await runScript('user-prompt-pipeline.ts', {
+      stdin: JSON.stringify({ prompt: envelope('!permission-mode auto', 'u1', '999') }),
+      cwd: wd.dir,
+      env: { HERMIT_TELEGRAM_API_URL: 'http://127.0.0.1:1' },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain('[conversation command: harness');
+    expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
+  });
+  test('!model in the bound home chat still records the resident marker', async () => {
+    const wd = setupChannelWorkdir();
+    writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test' });
+    bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    const result = await run(wd, '!model sonnet', 'http://127.0.0.1:1');
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('[harness-command]');
+    expect(result.stdout).not.toContain('[conversation command');
+    const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
+    expect(pending.command).toBe('/model');
+  });
   for (const body of ['!mute', '!unmute', '!restart', '!fork task']) {
     test(`${body} outside a binding`, async () => {
       const wd = setupChannelWorkdir();

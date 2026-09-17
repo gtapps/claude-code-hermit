@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { acquireLockWithWait, releaseLock } from './lockfile';
+import { helperCommandTarget, permissionModeRefusal, parseHarnessCommand } from './harness-command';
 import { writeFileAtomic } from './md-write';
 
 export type ConversationStatus = 'running' | 'idle' | 'parked' | 'unknown';
@@ -14,8 +15,22 @@ export interface Conversation {
   created: string;
   last_activity: string;
   status: ConversationStatus;
+  // Per-helper launch overrides set by the `harness` verb's relaunch. Absent on
+  // existing bindings and on any record that has not had one applied; cleared
+  // together on the next `!restart` (generation: '+1') since a fresh helper
+  // launches from config defaults again, not from the stopped helper's overrides.
+  model?: string;
+  effort?: string;
+  permission_mode?: string;
+  advisor?: string;
 }
-export type ConversationPatch = Partial<Omit<Conversation, 'created' | 'generation'>> & { generation?: '+1' };
+// The four launch overrides additionally accept `null`, meaning "delete this
+// field" — how `harness()` below restores a record to its pre-attempt shape
+// after a failed relaunch, distinct from ordinary omission (leave unchanged).
+export type ConversationPatch =
+  & Partial<Omit<Conversation, 'created' | 'generation' | 'model' | 'effort' | 'permission_mode' | 'advisor'>>
+  & { generation?: '+1' }
+  & { model?: string | null; effort?: string | null; permission_mode?: string | null; advisor?: string | null };
 type Store = Record<string, Conversation>;
 
 function withStore<T>(dir: string, write: boolean, run: (store: Store) => T): T {
@@ -66,13 +81,19 @@ export function bind(dir: string, key: string, input: Pick<Conversation, 'sessio
   });
 }
 
+const OVERRIDE_FIELDS = ['model', 'effort', 'permission_mode', 'advisor'] as const;
+
 export function update(dir: string, key: string, patch: ConversationPatch): void {
   checkKey(key);
   withStore(dir, true, store => {
     const record = store[key];
     if (!record) throw new Error('not-found');
     const { generation, ...fields } = patch;
-    store[key] = { ...record, ...fields, generation: record.generation + (generation === '+1' ? 1 : 0), last_activity: new Date().toISOString() };
+    const next: Conversation = { ...record, ...(fields as Partial<Conversation>), generation: record.generation + (generation === '+1' ? 1 : 0), last_activity: new Date().toISOString() };
+    for (const field of OVERRIDE_FIELDS) {
+      if (generation === '+1' || (fields as Record<string, unknown>)[field] === null) delete next[field];
+    }
+    store[key] = next;
   });
 }
 
@@ -149,6 +170,104 @@ export async function awaitAgent(
     if (remaining <= 0) return null;
     await Bun.sleep(Math.min(1000, remaining));
   }
+}
+
+// --- harness: stop and relaunch a bound helper for a helper-scoped command ---
+//
+// `/compact` resumes flagless in place (same session id, saved options kept).
+// `/model`, `/effort`, `/permission-mode`, `/advisor` resume flagged, which
+// Claude Code forks into a copy: every saved launch option is dropped by that
+// fork, so this stores the new value on the record first and re-passes every
+// stored override on the relaunch, not just the one that changed. See the
+// plan's "Harness premises" table for the probed behavior this leans on.
+
+export type HarnessSpawn = (argv: string[], opts?: { cwd?: string }) => { stdout: string; exitCode: number };
+export type HarnessDeps = {
+  spawn: HarnessSpawn;
+  readRegistry: () => unknown;
+  awaitTimeoutMs?: number;
+};
+
+const HARNESS_FIELD: Partial<Record<string, typeof OVERRIDE_FIELDS[number]>> = {
+  '/model': 'model',
+  '/effort': 'effort',
+  '/permission-mode': 'permission_mode',
+  '/advisor': 'advisor',
+};
+
+const HARNESS_NOTICE = 'The operator changed a session setting from chat; no work is requested on this turn.';
+
+/**
+ * Stops the helper if it is idle, relaunches it per the parsed harness
+ * command, and returns its (unchanged) session name. Throws an Error whose
+ * message is one of the CLI's `ERROR|` tokens on any failure; the caller
+ * (`conversation.ts`'s `harness` verb) reports it and never stops anything
+ * more once one of these fires.
+ */
+export async function harness(
+  dir: string, key: string, command: string, arg: string | null, config: any, deps: HarnessDeps,
+): Promise<string> {
+  const record = lookup(dir, key);
+  if (!record) throw new Error('not-found');
+
+  const parsed = parseHarnessCommand(arg ? `${command} ${arg}` : command);
+  if (!parsed || helperCommandTarget(parsed.command) !== 'relaunch') throw new Error('invalid-command');
+  if (parsed.command === '/permission-mode' && permissionModeRefusal(parsed.arg!)) throw new Error('invalid-command');
+
+  if (parsed.command !== '/permission-mode') {
+    const effectiveMode = record.permission_mode ?? config?.permission_mode;
+    if (effectiveMode === 'bypassPermissions') throw new Error('bypass-mode');
+  }
+
+  let agents: unknown = deps.readRegistry();
+  if (typeof agents === 'string') {
+    try { agents = JSON.parse(agents); } catch { agents = []; }
+  }
+  const entry = Array.isArray(agents) ? agents.find((a: any) => a?.sessionId === record.session_id) : undefined;
+  if (entry) {
+    // `state` is the blocked/working flag, `status` the idle/busy one, and they are
+    // not interchangeable: a helper that finished its turn reports `status: idle`
+    // with `state: done`, and a blocked one reports `status: idle` with
+    // `state: blocked`. So blocked is read off `state` (first, since its status is
+    // idle too) and readiness off `status`. A missing status fails closed.
+    if (entry.state === 'blocked') throw new Error('helper-blocked');
+    if (entry.status !== 'idle') throw new Error('helper-busy');
+    const stopped = deps.spawn(['claude', 'stop', entry.id]);
+    if (stopped.exitCode !== 0) throw new Error('stop-failed');
+  }
+
+  const argv = ['claude', '--bg', '--resume', record.session_id];
+  let updated: Conversation = record;
+  let previous: ConversationPatch | null = null;
+
+  if (parsed.command === '/compact') {
+    argv.push('/compact');
+  } else {
+    const field = HARNESS_FIELD[parsed.command];
+    if (!field) throw new Error('invalid-command');
+    previous = {};
+    for (const f of OVERRIDE_FIELDS) previous[f] = record[f] ?? null;
+    updated = { ...record, [field]: parsed.arg };
+    update(dir, key, { [field]: parsed.arg } as ConversationPatch);
+    const permMode = updated.permission_mode ?? config?.permission_mode;
+    argv.push('--name', updated.session_name, '--permission-mode', permMode);
+    if (updated.model) argv.push('--model', updated.model);
+    if (updated.effort) argv.push('--effort', updated.effort);
+    if (updated.advisor) argv.push('--advisor', updated.advisor);
+    if (config?.remote === true) argv.push('--remote-control', updated.session_name);
+    argv.push(HARNESS_NOTICE);
+  }
+
+  const result = deps.spawn(argv, { cwd: record.worktree });
+  if (result.exitCode !== 0) {
+    if (previous) update(dir, key, previous);
+    throw new Error('resume-failed');
+  }
+
+  const copy = result.stdout.match(/started a copy as ([0-9a-f]{8})/);
+  const found = copy && await awaitAgent(copy[1], { timeoutMs: deps.awaitTimeoutMs ?? 120_000, readRegistry: deps.readRegistry });
+  update(dir, key, found ? { session_id: found.sessionId, status: 'running' } : { status: 'running' });
+  return record.session_name;
 }
 
 export function prune(dir: string, agentsText: string): void {

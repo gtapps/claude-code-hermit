@@ -2,7 +2,7 @@ import { afterAll, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logMessage } from '../scripts/lib/channel-log';
-import { awaitAgent, bind, helperStatus, list, lookup, prune, unbind, update } from '../scripts/lib/conversations';
+import { awaitAgent, bind, harness, helperStatus, list, lookup, prune, unbind, update, type HarnessSpawn } from '../scripts/lib/conversations';
 import { freshDirFactory } from './helpers/workdir';
 
 const { freshDir, cleanup } = freshDirFactory('conversations-');
@@ -25,6 +25,21 @@ test('binding lifecycle and generation', () => {
   expect(Object.keys(list(dir))).toEqual([key]);
   unbind(dir, key);
   expect(lookup(dir, key)).toBeNull();
+});
+
+test('per-helper launch overrides persist across an unrelated update and clear on +1', () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  update(dir, key, { model: 'sonnet', effort: 'high', permission_mode: 'acceptEdits', advisor: 'opus' });
+  expect(lookup(dir, key)).toMatchObject({ model: 'sonnet', effort: 'high', permission_mode: 'acceptEdits', advisor: 'opus' });
+  update(dir, key, { status: 'idle' });
+  expect(lookup(dir, key)).toMatchObject({ model: 'sonnet', effort: 'high', permission_mode: 'acceptEdits', advisor: 'opus', status: 'idle' });
+  update(dir, key, { generation: '+1' });
+  const record = lookup(dir, key);
+  expect(record).not.toHaveProperty('model');
+  expect(record).not.toHaveProperty('effort');
+  expect(record).not.toHaveProperty('permission_mode');
+  expect(record).not.toHaveProperty('advisor');
 });
 
 test('prune preserves empty or unparsable input and matches stable session ids only', () => {
@@ -132,6 +147,137 @@ test('helperStatus returns an empty list for unparsable or non-array registry te
   expect(helperStatus('broken', jobsDir, 0)).toEqual([]);
   expect(helperStatus('{}', jobsDir, 0)).toEqual([]);
   expect(helperStatus('', jobsDir, 0)).toEqual([]);
+});
+
+function recordCalls(script: (argv: string[], opts?: { cwd?: string }) => { stdout: string; exitCode: number }) {
+  const calls: { argv: string[]; cwd?: string }[] = [];
+  const spawn: HarnessSpawn = (argv, opts) => { calls.push({ argv, cwd: opts?.cwd }); return script(argv, opts); };
+  return { spawn, calls };
+}
+
+const CONFIG = { permission_mode: 'auto', remote: false };
+
+test('harness: idle helper is stopped, then relaunched flagless for /compact', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(argv => {
+    if (argv[1] === 'stop') return { stdout: '', exitCode: 0 };
+    return { stdout: 'woke session', exitCode: 0 };
+  });
+  // Live registry shape for a helper that finished its turn: `status: idle` with
+  // `state: done` — an idle helper never reports `state: 'idle'`.
+  const readRegistry = () => [{ id: 'aaaa1111', sessionId: input.session_id, status: 'idle', state: 'done' }];
+  const sessionName = await harness(dir, key, '/compact', null, CONFIG, { spawn, readRegistry });
+  expect(sessionName).toBe(input.session_name);
+  expect(calls).toEqual([
+    { argv: ['claude', 'stop', 'aaaa1111'], cwd: undefined },
+    { argv: ['claude', '--bg', '--resume', input.session_id, '/compact'], cwd: input.worktree },
+  ]);
+  expect(lookup(dir, key)?.status).toBe('running');
+});
+
+test('harness: absent registry entry skips the stop', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: 'woke session', exitCode: 0 }));
+  const readRegistry = () => []; // no entry with this record's session_id: nothing to stop
+  await harness(dir, key, '/model', 'sonnet', CONFIG, { spawn, readRegistry });
+  expect(calls).toHaveLength(1);
+  expect(calls[0].argv).not.toContain('stop');
+});
+
+test('harness: a busy helper refuses without stopping or relaunching', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: '', exitCode: 0 }));
+  const readRegistry = () => [{ id: 'aaaa1111', sessionId: input.session_id, status: 'busy', state: 'working' }];
+  await expect(harness(dir, key, '/effort', 'high', CONFIG, { spawn, readRegistry })).rejects.toThrow('helper-busy');
+  expect(calls).toHaveLength(0);
+});
+
+test('harness: a blocked helper refuses without stopping or relaunching', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: '', exitCode: 0 }));
+  // A blocked helper also reports `status: idle`, so `state` is what distinguishes it.
+  const readRegistry = () => [{ id: 'aaaa1111', sessionId: input.session_id, status: 'idle', state: 'blocked' }];
+  await expect(harness(dir, key, '/effort', 'high', CONFIG, { spawn, readRegistry })).rejects.toThrow('helper-blocked');
+  expect(calls).toHaveLength(0);
+});
+
+test('harness: a "started a copy" relaunch resolves through awaitAgent and stores the new session id', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  let registryReads = 0;
+  const { spawn } = recordCalls(() => ({ stdout: 'started a copy as bbbb2222', exitCode: 0 }));
+  const readRegistry = () => {
+    registryReads += 1;
+    return registryReads === 1
+      ? [] // the pre-relaunch liveness check: nothing running, so no stop
+      : [{ id: 'bbbb2222', sessionId: 'copy-session', cwd: input.worktree }]; // awaitAgent's poll
+  };
+  await harness(dir, key, '/model', 'opus', CONFIG, { spawn, readRegistry });
+  expect(lookup(dir, key)).toMatchObject({ session_id: 'copy-session', model: 'opus', status: 'running' });
+});
+
+test('harness: a "woke session" relaunch leaves the session id unchanged', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn } = recordCalls(() => ({ stdout: 'woke session', exitCode: 0 }));
+  const readRegistry = () => [];
+  await harness(dir, key, '/compact', null, CONFIG, { spawn, readRegistry });
+  expect(lookup(dir, key)?.session_id).toBe(input.session_id);
+});
+
+test('harness: a second flagged command re-passes the first one\'s stored value', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: 'woke session', exitCode: 0 }));
+  const readRegistry = () => []; // no running entry: nothing to stop, focus on relaunch argv
+  await harness(dir, key, '/model', 'sonnet', CONFIG, { spawn, readRegistry });
+  await harness(dir, key, '/effort', 'high', CONFIG, { spawn, readRegistry });
+  const secondRelaunch = calls[calls.length - 1].argv;
+  expect(secondRelaunch).toContain('--model');
+  expect(secondRelaunch[secondRelaunch.indexOf('--model') + 1]).toBe('sonnet');
+  expect(secondRelaunch).toContain('--effort');
+  expect(secondRelaunch[secondRelaunch.indexOf('--effort') + 1]).toBe('high');
+});
+
+test('harness: remote config adds --remote-control with the session name', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: 'woke session', exitCode: 0 }));
+  const readRegistry = () => [];
+  await harness(dir, key, '/advisor', 'opus', { ...CONFIG, remote: true }, { spawn, readRegistry });
+  const relaunch = calls[calls.length - 1].argv;
+  expect(relaunch).toContain('--remote-control');
+  expect(relaunch[relaunch.indexOf('--remote-control') + 1]).toBe(input.session_name);
+});
+
+test('harness: a failed relaunch restores the record\'s previous override values', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  update(dir, key, { model: 'opus' });
+  const { spawn } = recordCalls(() => ({ stdout: '', exitCode: 1 }));
+  const readRegistry = () => [];
+  await expect(harness(dir, key, '/effort', 'high', CONFIG, { spawn, readRegistry })).rejects.toThrow('resume-failed');
+  const record = lookup(dir, key);
+  expect(record?.model).toBe('opus');
+  expect(record).not.toHaveProperty('effort');
+});
+
+test('harness: unknown key, bad command, doctor/clear, refused mode, and bypass-mode all refuse', async () => {
+  const dir = freshDir();
+  bind(dir, key, input);
+  const { spawn, calls } = recordCalls(() => ({ stdout: '', exitCode: 0 }));
+  const readRegistry = () => [];
+  await expect(harness(dir, 'discord:missing', '/model', 'sonnet', CONFIG, { spawn, readRegistry })).rejects.toThrow('not-found');
+  await expect(harness(dir, key, '/status', null, CONFIG, { spawn, readRegistry })).rejects.toThrow('invalid-command');
+  await expect(harness(dir, key, '/doctor', null, CONFIG, { spawn, readRegistry })).rejects.toThrow('invalid-command');
+  await expect(harness(dir, key, '/clear', null, CONFIG, { spawn, readRegistry })).rejects.toThrow('invalid-command');
+  await expect(harness(dir, key, '/permission-mode', 'bypassPermissions', CONFIG, { spawn, readRegistry })).rejects.toThrow('invalid-command');
+  await expect(harness(dir, key, '/model', 'sonnet', { ...CONFIG, permission_mode: 'bypassPermissions' }, { spawn, readRegistry })).rejects.toThrow('bypass-mode');
+  expect(calls).toHaveLength(0);
 });
 
 // AGENT_DIR is applied last so an ambient one from the shell running the suite can

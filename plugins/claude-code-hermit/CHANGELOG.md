@@ -4,6 +4,7 @@
 
 ### Changed
 - Shorter channel responder instructions and bounded formatting reads for routine messages
+- Harness commands sent in a helper's thread act on that helper; the home chat still controls the agent
 
 ## [1.4.1] - 2026-09-17
 

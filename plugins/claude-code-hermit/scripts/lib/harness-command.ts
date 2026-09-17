@@ -71,6 +71,22 @@ export function parseHarnessCommand(body: string): ParsedCommand | null {
   return null;
 }
 
+/**
+ * Where a harness command sent in a bound helper's non-home thread applies:
+ * `restart` for `/clear` (the helper is torn down and relaunched fresh, same
+ * as `!restart`), `relaunch` for every other settable command (the helper is
+ * stopped and resumed in place or as a flagged copy), or `null` for `/doctor`,
+ * which is a relayed skill invocation and always stays with the resident.
+ * The one place both the routing stage (lib/prompt-stages/conversation.ts) and
+ * the `harness` verb (lib/conversations.ts) get this classification, so they
+ * cannot drift apart on which commands are helper-scoped.
+ */
+export type HelperCommandTarget = 'restart' | 'relaunch';
+export function helperCommandTarget(command: string): HelperCommandTarget | null {
+  if (command === '/doctor') return null;
+  return command === '/clear' ? 'restart' : 'relaunch';
+}
+
 // --- Permission-mode targets ----------------------------------------------
 //
 // The one place a value list is unavoidable. Every other arg is shape-checked and handed

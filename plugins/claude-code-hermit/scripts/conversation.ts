@@ -4,8 +4,12 @@ import { pinStateDirOrExit } from './lib/cc-compat';
 import { createThread, isThreadType, lookupChat } from './lib/channel-chats';
 import { conversationHistory } from './lib/channel-log';
 import { readSettledConfig } from './lib/config-read';
-import { awaitAgent, bind, helperStatus, list, lookup, prune, unbind, update, type ConversationPatch } from './lib/conversations';
+import { awaitAgent, bind, harness, helperStatus, list, lookup, prune, unbind, update, type ConversationPatch, type HarnessSpawn } from './lib/conversations';
 import { defaultConfigDir } from './lib/setup-token';
+
+function readAgentsRegistry(dir: string): string {
+  return Bun.spawnSync(['claude', 'agents', '--json', '--cwd', path.dirname(dir)], { env: process.env, timeout: 30_000 }).stdout.toString();
+}
 
 function options(args: string[]): Record<string, string> {
   const result: Record<string, string> = {};
@@ -41,7 +45,7 @@ async function main(): Promise<void> {
   }
   if (verb === 'helper-status') {
     if (key) throw new Error('invalid-options');
-    const agentsText = Bun.spawnSync(['claude', 'agents', '--json', '--cwd', path.dirname(dir)], { env: process.env, timeout: 30_000 }).stdout.toString();
+    const agentsText = readAgentsRegistry(dir);
     console.log(JSON.stringify(helperStatus(agentsText, path.join(defaultConfigDir(), 'jobs'), Date.now())));
     return;
   }
@@ -155,6 +159,17 @@ async function main(): Promise<void> {
       if (args.length) throw new Error('invalid-options');
       unbind(dir, key);
       break;
+    case 'harness': {
+      if (Object.keys(opts).some(k => !['command', 'arg'].includes(k)) || !opts.command) throw new Error('invalid-options');
+      const config = readSettledConfig(dir);
+      const spawn: HarnessSpawn = (argv, spawnOpts) => {
+        const proc = Bun.spawnSync(argv, { cwd: spawnOpts?.cwd, env: process.env, timeout: 60_000 });
+        return { stdout: proc.stdout.toString(), exitCode: proc.exitCode ?? 1 };
+      };
+      const sessionName = await harness(dir, key, opts.command, opts.arg ?? null, config, { spawn, readRegistry: () => readAgentsRegistry(dir) });
+      console.log(`OK|${key}|${sessionName}`);
+      return;
+    }
     default: throw new Error('unknown-verb');
   }
   console.log(`OK|${key}`);

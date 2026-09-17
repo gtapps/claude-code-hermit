@@ -1,8 +1,9 @@
 import { readTasks } from '../tasks';
 import { lookup } from '../conversations';
 import { resolveSlashCommand } from '../channel-slash-address';
-import { channelBotIdentity, isAllowedSender, isSelfMentioned } from '../channel-auth';
+import { channelBotIdentity, isAllowedSender, isHomeChat, isSelfMentioned, isTrustedController } from '../channel-auth';
 import { cachedChat } from '../channel-chats';
+import { helperCommandTarget, parseHarnessCommand, permissionModeRefusal } from '../harness-command';
 import { safeForLLM } from '../sanitize';
 import { capture } from './channel-reply-reminder';
 import type { StageContext, StageResult } from './types';
@@ -45,9 +46,42 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
   }
   ctx.conversation = { key, record };
   const context = `[bound conversation ${key}: ${record.status}, muted=${record.muted}]`;
-  if (name === 'model' || name === 'effort') {
+  // A harness command (/clear, /compact, /model, /effort, /permission-mode,
+  // /advisor) in a bound, non-home chat from an allowed sender acts on the
+  // helper instead of the resident: route it here and skip the harness-command
+  // stage entirely so no pending-harness-command.json marker is ever written for
+  // it. /doctor stays resident (it is a relayed skill invocation, not a session
+  // setting), and the home chat always keeps its existing resident behavior —
+  // when either condition fails, fall through as if this branch did not exist.
+  //
+  // The sender gate is this stage's own isAllowedSender check above, deliberately
+  // not isTrustedController: outside the home chat that gate reduces to the
+  // pinned-home binding whenever no allowed_users list exists, so requiring it
+  // here would make the branch unsatisfiable on an accept-all channel and send
+  // the command to the resident instead. An allowed sender in a bound chat can
+  // already steer this helper with arbitrary prose, so its launch options are not
+  // a wider authority.
+  //
+  // /permission-mode is the exception: no amount of prose changes a helper's
+  // permission mode, so that one keeps the stricter controller gate. An allowed
+  // but untrusted sender falls through instead, where the harness-command stage's
+  // own isTrustedController check turns it into a silent no-op.
+  const harnessParsed = addressed && parseHarnessCommand(`${addressed.command}${addressed.rest}`);
+  const helperTarget = harnessParsed && helperCommandTarget(harnessParsed.command);
+  const helperAuthorized = harnessParsed?.command !== '/permission-mode'
+    || isTrustedController(ctx.config(), env.source, env.userId, env.chatId);
+  if (harnessParsed && helperTarget && helperAuthorized
+    && !isHomeChat(ctx.config(), env.source, env.chatId)) {
     ctx.skipHarnessCommand = true;
-    return { context: `${context}\n[conversation command refused: per-conversation model/effort not supported]` };
+    if (helperTarget === 'restart') {
+      return { context: `${context}\n[conversation command: restart]` };
+    }
+    if (harnessParsed.command === '/permission-mode' && harnessParsed.arg) {
+      const refusal = permissionModeRefusal(harnessParsed.arg);
+      if (refusal) return { context: `${context}\n[conversation command refused: ${refusal}]` };
+    }
+    const arg = harnessParsed.arg ? ` ${harnessParsed.arg}` : '';
+    return { context: `${context}\n[conversation command: harness ${harnessParsed.command}${arg}]` };
   }
   if (conversationCommand) return { context: `${context}\n[conversation command: ${name}${safeArgs ? ' ' + safeArgs : ''}]` };
   // Mute silences ordinary steering, not an addressed command: pause/resume/snooze
