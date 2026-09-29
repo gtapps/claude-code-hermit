@@ -4,7 +4,8 @@ set -euo pipefail
 BINDING=__HERMIT_BINDING__
 UPDATE_ID=__HERMIT_UPDATE_ID__
 # Prefer the install recorded at `hermit-cli install`; when that one is gone (its
-# project uninstalled or deleted), fall back to any other core install; Claude Code reports enabled from the caller's settings.
+# project uninstalled or deleted), fall back to any other core install. `enabled`
+# is ignored: Claude Code reports it from the caller's folder settings.
 if ! INSTALL_PATH=$(claude plugin list --json | bun -e '
 const fs = require("fs");
 try {
