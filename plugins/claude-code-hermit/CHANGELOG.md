@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- The host `hermit` launcher works from folders that don't enable the plugin, including when its bound project was deleted.
+
+### Upgrade Instructions
+1. On tmux hosts, outside the container, run `.claude-code-hermit/bin/hermit-run hermit-cli install` from the project root. `hermit update` and `hermit-docker update` already refresh the launcher.
+
 ## [1.4.8] - 2026-09-29
 
 ### Added
