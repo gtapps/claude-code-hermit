@@ -14,13 +14,13 @@ From the repo root:
 
 ```bash
 claude plugin eval plugins/claude-code-hermit --tag train --ablation none \
-  --model haiku --runs 1 -j 3 --max-cost-usd 3 --no-publish
+  --model sonnet --runs 1 -j 3 --max-cost-usd 4 --no-publish
 ```
 
 - `--ablation none`: a no-plugin arm has no routing rules to compare, and the default two-arm mode drops `tool_used: Skill` graders from the score.
-- Measured on 2026-10-01, one run per case over all 30 cases: haiku $1.84, sonnet $3.21, opus about $6.
-- Iterate on haiku with `--tag train` or `--case <name>`; run both tags on sonnet and opus before merging a wording change.
+- Measured on 2026-10-01, one run per case over all 33 cases: sonnet about $3.70, opus about $7.40.
+- Hillclimb on sonnet with both tags; confirm the kept wording on opus before merging. Always-on agents do not run on haiku.
 
 ## Changing routing wording
 
-Change one rule at a time and keep it only when neither `train` nor `heldout` drops; a `train`-only gain is overfitting. A new misroute seen in the field becomes a `heldout` case first.
+Change one rule at a time and keep it only when both `train` and `heldout` improve; revert when only `train` rises (overfitting) or either drops. A new misroute seen in the field becomes a `heldout` case first.

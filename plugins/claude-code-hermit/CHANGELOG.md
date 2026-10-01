@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+- An explicit chat assignment ("next task:", "work on") or a message with several requests opens a task even when the work would fit one turn.
+- A bare YES, LATER or NO with one open suggestion acts on it; with several, it acts on none and asks which by suggestion number.
+
 ### Fixed
 - The host `hermit` launcher works from folders that don't enable the plugin, including when its bound project was deleted.
 
