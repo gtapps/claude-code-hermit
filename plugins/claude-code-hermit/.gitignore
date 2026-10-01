@@ -3,3 +3,6 @@
 
 # Graphify output
 graphify-out
+
+# Maintainer-local claude plugin eval suites
+evals/

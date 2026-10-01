@@ -78,9 +78,7 @@ Invoke `/claude-code-hermit:task` for an assignment at or above the TASKS.md thr
 Acknowledge first through the channel.
 A later message in an annotated task thread is steering, never a second record.
 
-- **Task thread**: invoke `/claude-code-hermit:task` through the task route above.
-
-- **Conversation command**: invoke `/claude-code-hermit:task` through the task route above.
+- **Task thread**, **Conversation command**, **New instruction**: invoke `/claude-code-hermit:task` through the task route above.
 
 Before archive traversal, multi-file search or delegated execution, apply **Context-hygiene & delegation**: delegate when its criteria hold and retain only the verdict.
 
@@ -109,14 +107,12 @@ Before archive traversal, multi-file search or delegated execution, apply **Cont
   - Otherwise invoke `/claude-code-hermit:cost-reflect`; its Step 0/1 use channel-aware `--plain` mode. Do not run the raw token-category breakdown here.
 
 - **Task assignment** ("work on X", "next task: Z", "start Y", or any message describing work to be done)
-  - Apply TASKS.md policy. At or above its threshold the message is a **Task thread**: handle it there, including the `--due <ISO>` flag on `task.ts open` when a date was given, and end the turn.
+  - Apply TASKS.md policy; an explicit marker like these, or several requests in one message, meets its threshold on any subject even when the work fits this turn. At or above it the message is a **Task thread**: handle it there, including the `--due <ISO>` flag on `task.ts open` when a date was given, and end the turn.
   - Below the threshold, answer in this turn and open no record.
 
 - **Micro-approval response** ("yes", "no", "MP-… yes/no", "MP-… <number>", "MP-… <label>", a bare number, or a bare label): only while a pending entry exists, read `approvals.md` § Micro-approval response. With no pending entry, fall through to general classification.
 
-- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", proposal numbers, `#N`, or `YES`/`LATER`/`NO` to a Suggestion card): when no pending micro answer claimed the reply, read `approvals.md` § Proposal approval.
-
-- **New instruction**: invoke `/claude-code-hermit:task` through the task route above.
+- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", proposal numbers, `#N`, or `YES`/`LATER`/`NO` to a Suggestion card): when no pending micro answer claimed the reply, read `approvals.md` § Proposal approval. Bare `YES`/`LATER`/`NO`: with exactly one open suggestion, apply it through `/claude-code-hermit:proposal-act`; with several, act on none and ask which by number ("#14 or #15?"), which is not an internal ID.
 
 - **Settings change request** ("change the model", "add a routine", "turn off the heartbeat" — anything that alters `.claude-code-hermit/config.json`)
   - Route every config write through `/claude-code-hermit:hermit-settings` and `.claude-code-hermit/bin/hermit-run settings-edit …`. Never Edit or Write `config.json`, from any turn origin. `settings-gate` raises native permission prompts for asked paths.
