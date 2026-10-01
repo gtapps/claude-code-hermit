@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: paused-reply-only
+description: 'While paused only the reply tool works.'
+tags: [channel-routing, heldout]
+expected_outcome: 'One channel reply and no other tool call.'
+execution:
+  max_turns: 6
+  timeout_seconds: 240
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: |
+    <system-reminder>
+    SessionStart hook additional context:
+    Task policy (TASKS.md):
+    ## Record threshold
+    Record work that outlasts the turn or needs a human. Plain questions open nothing.
+    ## Confirmation and cancel words
+    A posted result at its current revision is confirmed by "ok", "yes", or "confirmed", or by the requester clearly adopting it: acts on it, thanks for it as finished, or builds the next request on it. A message that defers review or asks for a correction does not confirm; a correction stays steering on the same record. A named approver confirms only by that approver's explicit word. Silence never confirms. Use "cancel" or "stop this task" to cancel with a reason. A pending micro-proposal takes precedence.
+    ## Card, notice and standup wording
+    Keep cards concise: requester, definition of done, due date and outcome. State the queue position when accepting work for later. Show handles when two or more tasks are open in the conversation; in DMs also require tasks.handle_in_dm.
+    ## Questions inside a task's place
+    Do not log questions unless they change the task.
+    Config: operator_profile=technical; language unset; channels.discord.allowed_users=["100000000000000001"] (first entry is the primary operator).
+    </system-reminder>
+    <system-reminder>
+    Hermit state for this turn. This session has no shell and the hermit state directory is not on disk: each line below is what that hermit script returns right now. Use it as the script result; do not try to run scripts or read state files, directly or through subagents.
+    - task.ts list --open --conversation discord:400000000000000001: {"rows":[],"total":0,"omitted":0}
+    - proposal-micro match: NONE|no-pending
+    - proposal-index (proposals-index.json): []
+    </system-reminder>
+    <system-reminder>
+    UserPromptSubmit hook additional context:
+    [pause] Hermit paused by sam (indefinite). Only the channel reply tool works until resumed.
+    [channel reply reminder] Inbound message arrived on the `discord` channel (chat_id=`400000000000000001`). Every reply, including a short acknowledgement, must go through `mcp__plugin_discord_discord__reply` with chat_id="400000000000000001". Transcript/terminal output does not reach the operator.
+    </system-reminder>
+    <channel source="plugin:discord:discord" chat_id="400000000000000001" message_id="500000000000000013" user="sam" user_id="100000000000000001" ts="2026-10-01T09:03:00.000Z">
+    you still there?
+    </channel>
+graders:
+  - name: replied-via-channel
+    type: tool_used
+    tool: 'mcp__plugin_discord_discord__reply'
+    weight: 2
+  - name: no-skill-call
+    type: tool_used
+    tool: 'Skill'
+    min: 0
+    max: 0

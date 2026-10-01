@@ -26,6 +26,8 @@ should use asynchronous spawning and drain stdout/stderr while awaiting exit.
 For contention tests, release holders after all contenders report instead of
 sleeping for an assumed scheduling window.
 
+Chat-routing evals: [`evals/README.md`](../evals/README.md).
+
 ---
 
 ## Test Structure

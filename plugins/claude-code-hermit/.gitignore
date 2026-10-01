@@ -3,3 +3,6 @@
 
 # Graphify output
 graphify-out
+
+# claude plugin eval output
+evals/results/
