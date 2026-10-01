@@ -129,6 +129,28 @@ test('shim falls back by scope precedence when the bound install is gone', async
   write(f.env.LIST, '[]');
   const [, code] = await shimOut(); expect(code).toBe(1);
 });
+for (const deleted of [false, true]) {
+  test(`shim ignores caller enablement when the bound project is ${deleted ? 'deleted' : 'present'}`, async () => {
+    const f = fixture(); const shim = path.join(f.root, '.local/bin/hermit');
+    // The CLI lists all installs; only the per-id enabled flag depends on the caller's settings.
+    write(path.join(f.bin, 'claude'), `#!/bin/sh
+if [ "$PWD" = "$ENABLING_PROJECT" ]; then enabled=true; else enabled=false; fi
+sed 's/"enabled":true/"enabled":'"$enabled"'/g' "$LIST"
+`);
+    const env = { ...f.env, ENABLING_PROJECT: f.p };
+    expect((await f.run(['install'], f.p, { ENABLING_PROJECT: f.p })).exitCode).toBe(0);
+    const install = deleted ? f.fresh : f.core;
+    if (deleted) {
+      fs.rmSync(f.p, { recursive: true });
+      write(f.env.LIST, JSON.stringify([{ id: 'claude-code-hermit@mp', scope: 'project', enabled: true, projectPath: path.join(f.root, 'other'), installPath: install }]));
+    }
+    write(path.join(install, 'scripts/hermit-exec.sh'), '#!/bin/sh\nprintf "%s|%s\\n" "$PWD" "$*"\n');
+    const child = Bun.spawn(['bash', shim, 'status', 'demo', '--json'], { cwd: f.root, env, stdout: 'pipe', stderr: 'pipe' });
+    const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+    expect(stderr).toBe(''); expect(exitCode).toBe(0);
+    expect(stdout).toBe(`${f.root}|hermit-cli status demo --json\n`);
+  });
+}
 test('host install refuses foreign file and notices earlier PATH tool', async () => {
   const f = fixture(); const shim = path.join(f.root, '.local/bin/hermit');
   write(shim, '#!/bin/sh\necho foreign\n');
