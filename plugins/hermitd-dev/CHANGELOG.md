@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.19] - 2026-10-02
 
 ### Changed
 - The plugin is named `hermitd-dev` in the `hermitd` marketplace, with namespaced skills and core commands updated to match.
