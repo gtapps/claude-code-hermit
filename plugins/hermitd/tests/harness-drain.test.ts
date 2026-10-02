@@ -36,7 +36,7 @@ function seed(dir: string, opts: { runtime?: Runtime; requestedAt?: string } = {
     JSON.stringify(opts.runtime ?? LIVE_RUNTIME),
   );
   writePendingCommand(hermitRoot(dir), {
-    command: '/compact',
+    command: '/doctor',
     arg: null,
     by: 'operator',
     requested_at: opts.requestedAt ?? new Date().toISOString(),

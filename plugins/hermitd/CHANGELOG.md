@@ -6,6 +6,8 @@
 - `scripts/migrate.sh` migrates all stopped 1.4.8 agents in one Claude config directory before startup, with resumable progress and backups for customized managed files.
 
 ### Changed
+- Chat `!model`, `!effort`, `!compact`, `!clear`, `!advisor` and deferred model/effort switches use the core mod without an agent turn or tmux keystroke, with replies based on observed outcomes.
+- Claude Code 2.1.287+ is required; doctor reports unavailable chat harness commands when the core mod has not loaded for the resident session.
 - The marketplace, core plugin and host CLI are named `hermitd`; project state lives in `.hermit/` and lifecycle wrappers use `hermitd-*`.
 - An explicit chat assignment ("next task:", "work on") or a message with several requests opens a task even when the work would fit one turn.
 - A bare YES, LATER or NO with one open suggestion acts on it; with several, it acts on none and asks which by suggestion number.
@@ -17,6 +19,14 @@
 ### Upgrade Instructions
 1. On tmux hosts, outside the container, run `.hermit/bin/hermitd-run hermitd-cli install` from the project root. `hermitd update` and `hermitd-docker update` already refresh the launcher.
 2. Read `heartbeat.model` in `.hermit/config.json`. If it is `"haiku"`, run `.hermit/bin/hermitd-run settings-edit .hermit/config.json set heartbeat.model sonnet`. Leave any other value alone: an absent key already resolves to `sonnet`, and `null` means the operator chose the session model. Tell the operator: "Heartbeat checks now run on Sonnet because Haiku returned unusable results. To switch back, ask me to set `heartbeat.model` to haiku."
+
+Claude Code 2.1.287 or newer is required for the core mod.
+
+3. From the installed project root, remove only an old pending native-command request, preserving permission-mode and doctor requests:
+
+   ```bash
+   bun -e 'const p = ".hermit/state/pending-harness-command.json"; const f = Bun.file(p); if (await f.exists()) { const v = await f.json(); if (["/model", "/effort", "/compact", "/clear", "/advisor"].includes(v.command)) await f.delete(); }'
+   ```
 
 ## [1.4.8] - 2026-09-29
 

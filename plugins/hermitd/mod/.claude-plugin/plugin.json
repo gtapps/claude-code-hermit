@@ -1,0 +1,8 @@
+{
+  "name": "hermitd-mod-tests",
+  "version": "0.0.0",
+  "description": "Test wrapper for the core chat harness mod.",
+  "author": {
+    "name": "gtapps"
+  }
+}

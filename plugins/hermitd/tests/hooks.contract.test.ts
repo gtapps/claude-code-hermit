@@ -481,8 +481,8 @@ describe('stop-pipeline', () => {
   }));
 
   // Ordering the drain depends on, previously asserted only by a comment: the
-  // accounting stages read the outgoing transcript, so a /clear must not land
-  // before them, and the heartbeat touch must survive the drain either way.
+  // accounting stages read the outgoing transcript before command delivery,
+  // and the heartbeat touch must survive the drain either way.
   test('stop-pipeline drains a harness command after accounting and still touches the heartbeat',
     withGitDir(async (dir) => {
       const bin = path.join(dir, 'fake-bin');
@@ -497,7 +497,7 @@ describe('stop-pipeline', () => {
         tmux_session: 'hermit-test',
       }));
       write(hermit(dir, 'state', 'pending-harness-command.json'), JSON.stringify({
-        command: '/clear', arg: null, by: 'operator', requested_at: new Date().toISOString(),
+        command: '/doctor', arg: null, by: 'operator', requested_at: new Date().toISOString(),
       }));
 
       const r = await runScript('stop-pipeline.ts', {
@@ -1432,14 +1432,14 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 34 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, pinned checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
       'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
       'permissions', 'permission-rules', 'docker-security', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'routine-cost', 'heartbeat',
-      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'passive-chats', 'context-scan', 'voice-carrier', 'overlay-hooks', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
+      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'passive-chats', 'context-scan', 'voice-carrier', 'overlay-hooks', 'harness-mod', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
     ]);
   }));
 

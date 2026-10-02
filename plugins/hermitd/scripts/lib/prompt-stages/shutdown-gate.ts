@@ -40,6 +40,10 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
 
   const locale = resolveLocale(config?.language);
   const reply = SHUTDOWN[locale].inProgress();
+  if (ctx.harnessMode) return { harness: {
+    decision: 'refuse', reason: reply,
+    reply_to: { source: envelope.sourceKey, chat_id: envelope.chatId },
+  } };
   const result = await sendToChannel(dir, reply, {
     target: { id: envelope.sourceKey, chat_id: envelope.chatId },
     timeoutMs: 6000,

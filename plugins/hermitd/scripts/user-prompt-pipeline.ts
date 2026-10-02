@@ -33,6 +33,10 @@ process.stdout.on('error', () => {});
 // is logged to stderr and the rest still run (the stop-pipeline.ts pattern).
 
 import path from 'node:path';
+import fs from 'node:fs';
+import { resolveCommand } from './lib/prompt-stages/harness-command';
+import { isTrustedController } from './lib/channel-auth';
+import type { HarnessDecision } from './lib/harness-mod';
 import { observeExecution } from './lib/tasks';
 import { classifySource } from './lib/trigger-source';
 
@@ -59,156 +63,175 @@ import { run as channelStatusResponder } from './lib/prompt-stages/channel-statu
 // stage can act on, and reading it unbounded is the only way this hook can hang.
 const MAX_STDIN_BYTES = 1024 * 1024;
 
-const out: string[] = [];
-let blockReason: string | null = null;
-let operatorActivityKept = false;
-let residentAdmitted = false;
-let admittedSession: string | null = null;
-let admittedSource: string | null = null;
+export async function runPromptPipeline(raw: string, harnessMode = false): Promise<HarnessDecision> {
+  let harnessDecision: HarnessDecision = { decision: 'pass' };
+  const out: string[] = [];
+  let blockReason: string | null = null;
+  let operatorActivityKept = false;
+  let residentAdmitted = false;
+  let admittedSession: string | null = null;
+  let admittedSource: string | null = null;
 
-async function stage(name: string, fn: (ctx: StageContext) => any, ctx: StageContext): Promise<void> {
-  if (blockReason) return; // a disposition is already settled
-  try {
-    const result: StageResult | void = await fn(ctx);
-    if (!result) return;
-    if (result.context) out.push(result.context);
-    if (result.block) blockReason = result.block;
-  } catch (e: any) {
-    process.stderr.write(`[user-prompt-pipeline] ${name}: ${e?.message || e}\n`);
-  }
-}
-
-async function main(raw: string): Promise<void> {
-  // Defensive parse: stages that don't need the payload still run on bad input,
-  // exactly as stop-pipeline.ts does.
-  let prompt: string | null = null;
-  let transcript: string | null = null;
-  let sessionId: string | null = null;
-  try {
-    const payload = JSON.parse(raw);
-    prompt = payload && typeof payload.prompt === 'string' ? payload.prompt : null;
-    transcript = ccTranscriptPath(payload);
-    sessionId = ccSessionId(payload);
-  } catch {
-    process.stderr.write('[user-prompt-pipeline] malformed stdin — continuing with an empty prompt\n');
-    // A parse failure on non-empty stdin means a prompt did arrive and was
-    // mangled — MAX_STDIN_BYTES truncation cuts mid-JSON. Carry on with an empty
-    // prompt rather than returning: the audit and timestamp stages don't need the
-    // text, and every prompt-matching stage below fails closed on ''. Returning
-    // here would leave the turn unrecorded and read the operator as silent.
-    if (raw.length === 0) return;
-    prompt = '';
-  }
-  if (prompt === null) return; // parsed, but no prompt for the stages to act on
-
-  const dir = hermitDir();
-
-  let configCache: any;
-  let configRead = false;
-  let runtimeCache: any;
-  let runtimeRead = false;
-
-  const ctx: StageContext = {
-    dir,
-    sessionId,
-    prompt,
-    envelope: parseChannelEnvelope(prompt),
-    transcriptPath: transcript,
-    config() {
-      // Raw, not settled: shutdown-gate and channel-status-responder treat a
-      // null config as a disclosure gate (silent no-op); settling would loosen it.
-      if (!configRead) { configRead = true; try { configCache = readConfigRaw(dir); } catch { configCache = null; } }
-      return configCache;
-    },
-    runtime() {
-      if (!runtimeRead) { runtimeRead = true; try { runtimeCache = readRuntimeJson(path.join(dir, 'state')); } catch { runtimeCache = null; } }
-      return runtimeCache;
-    },
-  };
-
-  const guest = isGuest(path.join(dir, 'state'), sessionId);
-  residentAdmitted = !guest;
-  admittedSession = sessionId;
-  admittedSource = classifySource(prompt);
-
-  await stage('resident-gate', () => {
-    if (!ctx.envelope) return;
-    if (guest) {
-      return { block: 'guest session: channel message left to the resident' };
+  async function stage(name: string, fn: (ctx: StageContext) => any, ctx: StageContext): Promise<void> {
+    if (blockReason) return; // a disposition is already settled
+    try {
+      const result: StageResult | void = await fn(ctx);
+      if (!result) return;
+      if (result.harness) harnessDecision = result.harness;
+      if (result.context) out.push(result.context);
+      if (result.block) blockReason = result.block;
+    } catch (e: any) {
+      process.stderr.write(`[user-prompt-pipeline] ${name}: ${e?.message || e}\n`);
     }
-    if (!ownsResidentIdentity(ctx.runtime())) {
-      return { block: 'channel message left to the resident session' };
+  }
+
+  async function main(raw: string): Promise<void> {
+    // Defensive parse: stages that don't need the payload still run on bad input,
+    // exactly as stop-pipeline.ts does.
+    let prompt: string | null = null;
+    let transcript: string | null = null;
+    let sessionId: string | null = null;
+    try {
+      const payload = JSON.parse(raw);
+      prompt = payload && typeof payload.prompt === 'string' ? payload.prompt : null;
+      transcript = ccTranscriptPath(payload);
+      sessionId = ccSessionId(payload);
+    } catch {
+      process.stderr.write('[user-prompt-pipeline] malformed stdin — continuing with an empty prompt\n');
+      // A parse failure on non-empty stdin means a prompt did arrive and was
+      // mangled — MAX_STDIN_BYTES truncation cuts mid-JSON. Carry on with an empty
+      // prompt rather than returning: the audit and timestamp stages don't need the
+      // text, and every prompt-matching stage below fails closed on ''. Returning
+      // here would leave the turn unrecorded and read the operator as silent.
+      if (raw.length === 0) return;
+      prompt = '';
     }
-  }, ctx);
+    if (prompt === null) return; // parsed, but no prompt for the stages to act on
 
-  // 1-3. Audit and context. These run on every admitted prompt, including during a
-  // shutdown — the operator's message is still recorded and the reply reminder
-  // still names the chat to answer on.
-  await stage('prompt-context', promptContext, ctx);
-  await stage('conversation', conversation, ctx);
-  // The reminder stage runs BEFORE the audit: it resolves passive-chat membership
-  // and self-mention over the network and warms lib/channel-chats.ts's cache, which
-  // record-operator-action's cache-only gate then reads. Auditing first misclassified
-  // the first message in an unseen Discord thread in both directions — stranger
-  // chatter froze the operator-silence clock, and a role mention the hermit did
-  // answer never advanced it (issue #835's failure). A passive block settles the
-  // disposition here too, so stage() skips the audit: chatter the model never sees
-  // is not operator activity.
-  await stage('channel-reply-reminder', channelReplyReminder, ctx);
-  await stage('record-operator-action',
-    () => { operatorActivityKept = recordOperatorAction(prompt, { envelope: ctx.envelope, config: ctx.config() }, { openTurn: false, sessionId }); }, ctx);
+    const dir = hermitDir();
 
-  // A guest's own prompts still receive context, but cannot control the resident.
-  // Its channel messages never get this far: the resident gate above blocks them.
-  if (guest) return;
+    let configCache: any;
+    let configRead = false;
+    let runtimeCache: any;
+    let runtimeRead = false;
 
-  const rt = ctx.runtime();
-  const shutdownPending = !!rt && !!rt.shutdown_requested_at && !rt.shutdown_completed_at;
+    const ctx: StageContext = {
+      dir,
+      harnessMode,
+      sessionId,
+      prompt,
+      envelope: parseChannelEnvelope(prompt),
+      transcriptPath: transcript,
+      config() {
+        // Raw, not settled: shutdown-gate and channel-status-responder treat a
+        // null config as a disclosure gate (silent no-op); settling would loosen it.
+        if (!configRead) { configRead = true; try { configCache = readConfigRaw(dir); } catch { configCache = null; } }
+        return configCache;
+      },
+      runtime() {
+        if (!runtimeRead) { runtimeRead = true; try { runtimeCache = readRuntimeJson(path.join(dir, 'state')); } catch { runtimeCache = null; } }
+        return runtimeCache;
+      },
+    };
 
-  if (shutdownPending) {
-    // Terminal: answer the shutdown and stop. Nothing below runs — not pause,
-    // not a harness command, not status.
-    await stage('shutdown-gate', shutdownGate, ctx);
-    return;
+    if (harnessMode) {
+      if (!fs.existsSync(dir) || !sessionId || ctx.runtime()?.cc_session_id !== sessionId) return;
+      const env = ctx.envelope;
+      const parsed = resolveCommand(ctx);
+      if (!env || !parsed || !['/model', '/effort', '/compact', '/clear', '/advisor'].includes(parsed.command)
+        || !isTrustedController(ctx.config(), env.source, env.userId, env.chatId)) return;
+    }
+    const guest = isGuest(path.join(dir, 'state'), sessionId);
+    residentAdmitted = !guest;
+    admittedSession = sessionId;
+    admittedSource = classifySource(prompt);
+
+    await stage('resident-gate', () => {
+      if (!ctx.envelope) return;
+      if (guest) {
+        return { block: 'guest session: channel message left to the resident' };
+      }
+      if (!harnessMode && !ownsResidentIdentity(ctx.runtime())) {
+        return { block: 'channel message left to the resident session' };
+      }
+    }, ctx);
+
+    // 1-3. Audit and context. These run on every admitted prompt, including during a
+    // shutdown — the operator's message is still recorded and the reply reminder
+    // still names the chat to answer on.
+    await stage('prompt-context', promptContext, ctx);
+    await stage('conversation', conversation, ctx);
+    if (harnessMode && ctx.skipHarnessCommand) return;
+    // The reminder stage runs BEFORE the audit: it resolves passive-chat membership
+    // and self-mention over the network and warms lib/channel-chats.ts's cache, which
+    // record-operator-action's cache-only gate then reads. Auditing first misclassified
+    // the first message in an unseen Discord thread in both directions — stranger
+    // chatter froze the operator-silence clock, and a role mention the hermit did
+    // answer never advanced it (issue #835's failure). A passive block settles the
+    // disposition here too, so stage() skips the audit: chatter the model never sees
+    // is not operator activity.
+    await stage('channel-reply-reminder', channelReplyReminder, ctx);
+    await stage('record-operator-action',
+      () => { operatorActivityKept = recordOperatorAction(prompt, { envelope: ctx.envelope, config: ctx.config() }, { openTurn: false, sessionId }); }, ctx);
+
+    // A guest's own prompts still receive context, but cannot control the resident.
+    // Its channel messages never get this far: the resident gate above blocks them.
+    if (guest) return;
+
+    const rt = ctx.runtime();
+    const shutdownPending = !!rt && !!rt.shutdown_requested_at && !rt.shutdown_completed_at;
+
+    if (shutdownPending) {
+      // Terminal: answer the shutdown and stop. Nothing below runs — not pause,
+      // not a harness command, not status.
+      await stage('shutdown-gate', shutdownGate, ctx);
+      return;
+    }
+
+    // 4-6. State writers and delivered relay context. They land before any network
+    // send, so an outer-timeout kill can lose a send but never a state write.
+    await stage('pause-keyword', pauseKeyword, ctx);
+    if (!ctx.skipHarnessCommand) await stage('harness-command', harnessCommand, ctx);
+    if (harnessMode) return;
+    await stage('channel-responder-invoke', invokeResponder, ctx);
+    await stage('skill-relay', skillRelay, ctx);
+
+    // 7. Deterministic status.
+    await stage('channel-status-responder', channelStatusResponder, ctx);
+
+    // 8. Switch verification LAST, and specifically after the status responder:
+    // its success path clears the verify marker, and a blocked prompt discards all
+    // accumulated context (see emit()). Running it earlier let a blocked `status`
+    // turn destroy the marker with the report unread — stage() skips it entirely
+    // once a block is settled, so the marker survives for the next real prompt.
+    await stage('harness-verify', harnessVerify, ctx);
   }
 
-  // 4-6. State writers and delivered relay context. They land before any network
-  // send, so an outer-timeout kill can lose a send but never a state write.
-  await stage('pause-keyword', pauseKeyword, ctx);
-  if (!ctx.skipHarnessCommand) await stage('harness-command', harnessCommand, ctx);
-  await stage('channel-responder-invoke', invokeResponder, ctx);
-  await stage('skill-relay', skillRelay, ctx);
+  function emit(): void {
+    // A block must be the only thing on stdout: Claude Code parses stdout as a
+    // decision object, and any leading context text makes that parse fail, which
+    // would drop the block and deliver the prompt anyway. The accumulated context
+    // is moot on a blocked prompt — the model never sees that turn.
+    if (blockReason) {
+      console.log(JSON.stringify({ decision: 'block', reason: blockReason }));
+      return;
+    }
+    for (const chunk of out) process.stdout.write(chunk.endsWith('\n') ? chunk : `${chunk}\n`);
 
-  // 7. Deterministic status.
-  await stage('channel-status-responder', channelStatusResponder, ctx);
-
-  // 8. Switch verification LAST, and specifically after the status responder:
-  // its success path clears the verify marker, and a blocked prompt discards all
-  // accumulated context (see emit()). Running it earlier let a blocked `status`
-  // turn destroy the marker with the report unread — stage() skips it entirely
-  // once a block is settled, so the marker survives for the next real prompt.
-  await stage('harness-verify', harnessVerify, ctx);
-}
-
-function emit(): void {
-  // A block must be the only thing on stdout: Claude Code parses stdout as a
-  // decision object, and any leading context text makes that parse fail, which
-  // would drop the block and deliver the prompt anyway. The accumulated context
-  // is moot on a blocked prompt — the model never sees that turn.
-  if (blockReason) {
-    console.log(JSON.stringify({ decision: 'block', reason: blockReason }));
-    return;
+    // Last, and only here: the disposition is now settled as "the model will take
+    // this turn". Written after stdout so a throw on this write can never swallow
+    // the decision or the injected context — emit()'s caller catches and exits 0.
+    if (operatorActivityKept) openTurnMarker();
+    if (residentAdmitted) observeExecution(hermitDir(), 'in_flight', admittedSession, admittedSource, null);
   }
-  for (const chunk of out) process.stdout.write(chunk.endsWith('\n') ? chunk : `${chunk}\n`);
 
-  // Last, and only here: the disposition is now settled as "the model will take
-  // this turn". Written after stdout so a throw on this write can never swallow
-  // the decision or the injected context — emit()'s caller catches and exits 0.
-  if (operatorActivityKept) openTurnMarker();
-  if (residentAdmitted) observeExecution(hermitDir(), 'in_flight', admittedSession, admittedSource, null);
+  await main(raw);
+  if (!harnessMode) emit();
+  else if (blockReason) return { decision: 'refuse', reason: blockReason, silent: true };
+  return harnessDecision;
 }
 
-try {
+if (import.meta.main) try {
   let buf = '';
   let truncated = false;
   process.stdin.setEncoding('utf8');
@@ -219,9 +242,9 @@ try {
   });
   process.stdin.on('error', () => {});
   process.stdin.on('end', () => {
-    main(buf)
+    runPromptPipeline(buf)
       .catch((e: any) => process.stderr.write(`[user-prompt-pipeline] ${e?.message || e}\n`))
-      .finally(() => { try { emit(); } catch { /* fail open */ } process.exit(0); });
+      .finally(() => process.exit(0));
   });
 } catch {
   process.exit(0);

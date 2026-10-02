@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readPendingCommand, writePendingCommand } from '../scripts/lib/harness-command';
+import { readDeferredSwitch, writeModState, DEFERRED_SWITCH_FILE } from '../scripts/lib/harness-mod';
 import { runScript } from './helpers/run';
 import { withDir } from './helpers/workdir';
 
@@ -15,22 +15,20 @@ function seed(dir: string, value = runtime): string {
 for (const args of [['--model', 'sonnet', '--effort', 'low'], ['--model', 'future-model'], ['--effort', 'low']]) {
   test(`arms ${args.join(' ')}, replacing the singleton`, withDir(async (dir) => {
     const root = seed(dir);
-    writePendingCommand(root, { command: '/clear', arg: null, by: 'old', requested_at: new Date().toISOString() });
+    writeModState(root, DEFERRED_SWITCH_FILE, { commands: [{ command: '/model', arg: 'old' }], by: 'old', requested_at: new Date().toISOString() });
     const result = await runScript('arm-harness-switch.ts', { cwd: dir, args: [root, ...args] });
     expect(result.exitCode).toBe(0);
-    const pending = readPendingCommand(root)!;
+    const pending = readDeferredSwitch(root)!;
     expect(pending.by).toBe('terminal');
-    expect(pending.command).toBe(args[0] === '--model' ? '/model' : '/effort');
-    expect(pending.arg).toBe(args[1]);
-    expect(pending.then).toEqual(args.length === 4 ? { command: '/effort', arg: 'low' } : undefined);
+    expect(pending.commands[0].command).toBe(args[0] === '--model' ? '/model' : '/effort');
+    expect(pending.commands[0].arg).toBe(args[1]);
+    expect(pending.commands.slice(1)).toEqual(args.length === 4 ? [{ command: '/effort', arg: 'low' }] : []);
     expect(result.stdout.trim().split('\n')).toHaveLength(1);
     expect(result.stdout).toContain('At the next idle');
   }));
 }
 
 for (const [label, value, args] of [
-  ['interactive', { ...runtime, runtime_mode: 'interactive' }, ['--model', 'sonnet']],
-  ['no pane', { ...runtime, tmux_session: '' }, ['--effort', 'low']],
   ['bad arg', runtime, ['--model', 'sonnet\n/clear']],
   ['missing flags', runtime, []],
   ['missing value', runtime, ['--model']],
@@ -42,6 +40,15 @@ for (const [label, value, args] of [
     const result = await runScript('arm-harness-switch.ts', { cwd: dir, args: [root, ...args] });
     expect(result.exitCode).toBe(1);
     expect(result.stderr.trim().split('\n')).toHaveLength(1);
-    expect(readPendingCommand(root)).toBeNull();
+    expect(readDeferredSwitch(root)).toBeNull();
+  }));
+}
+
+for (const value of [{ runtime_mode: 'interactive', tmux_session: '' }, { runtime_mode: 'headless', tmux_session: '' }]) {
+  test(`arms without a pane in ${value.runtime_mode}`, withDir(async dir => {
+    const root = seed(dir, value);
+    const result = await runScript('arm-harness-switch.ts', { cwd: dir, args: [root, '--effort', 'low'] });
+    expect(result.exitCode).toBe(0);
+    expect(readDeferredSwitch(root)?.commands).toEqual([{ command: '/effort', arg: 'low' }]);
   }));
 }

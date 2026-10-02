@@ -198,7 +198,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
     }
   });
 
-  test('a trusted /advisor <model> is recorded for the Stop hook', async () => {
+  test('a trusted /advisor <model> never records a Stop command', async () => {
     const stub = startHttpStub();
     try {
       const wd = setupChannelWorkdir();
@@ -207,10 +207,8 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const r = await run(wd, '!advisor opus', stub.url);
 
       expect(r.exitCode).toBe(0);
-      expect(r.stdout).toContain('[harness-command]');
-      expect(r.stdout).toContain('will be applied to this session when the current turn ends');
-      const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
-      expect(pending).toMatchObject({ command: '/advisor', arg: 'opus' });
+      expect(r.stdout).not.toContain('[harness-command]');
+      expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
     } finally {
       stub.stop();
     }
@@ -287,12 +285,12 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir({ bot_username: 'ourbot' });
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '!model@ourbot opus', stub.url);
+      const r = await run(wd, '!permission-mode@ourbot auto', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('[harness-command]');
       const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
-      expect(pending).toMatchObject({ command: '/model', arg: 'opus' });
+      expect(pending).toMatchObject({ command: '/permission-mode', arg: 'auto' });
     } finally {
       stub.stop();
     }
@@ -343,9 +341,9 @@ describe('user-prompt-pipeline: switch verification', () => {
   // marker older than SWITCH_VERIFY_TTL_SECS (24h), so an absolute delivered_at
   // passes until that instant and then fails forever.
   const DELIVERED_AT = new Date(Date.now() - 60_000).toISOString();
-  /** Clear of SWITCH_APPLY_GRACE_MS after delivery — the switch is observable. */
+  /** After observed completion, with no artificial grace window. */
   const POST_SWITCH_AT = new Date(Date.parse(DELIVERED_AT) + 30_000).toISOString();
-  /** Inside the grace window — could still be the pre-switch model. */
+  /** Before the switch, so this is the pre-switch model. */
   const PRE_SWITCH_AT = new Date(Date.parse(DELIVERED_AT) - 5_000).toISOString();
 
   function seedDeliveredSwitch(wd: Workdir, arg = 'fable'): void {

@@ -171,24 +171,21 @@ describe('permission-mode targets', () => {
 });
 
 describe('pending-command marker', () => {
-  test('round-trips a follow-up command', () => {
+  test('does not read native commands from the Stop marker', () => {
     const root = tmpRoot();
-    const entry = {
-      command: '/model', arg: 'sonnet', by: 'terminal',
-      then: { command: '/effort' as const, arg: 'low' },
-      requested_at: new Date().toISOString(),
-    };
-    expect(writePendingCommand(root, entry)).toBe(true);
-    expect(readPendingCommand(root)).toEqual(entry);
+    for (const command of ['/model', '/effort', '/compact', '/clear', '/advisor']) {
+      writePendingCommand(root, { command, arg: null, by: 'op', requested_at: new Date().toISOString() });
+      expect(readPendingCommand(root)).toBeNull();
+    }
     fs.rmSync(root, { recursive: true });
   });
 
   test('round-trips and renders', () => {
     const root = tmpRoot();
-    const entry = { command: '/model', arg: 'opus', by: 'op', requested_at: new Date().toISOString() };
+    const entry = { command: '/permission-mode', arg: 'auto', by: 'op', requested_at: new Date().toISOString() };
     expect(writePendingCommand(root, entry)).toBe(true);
     expect(readPendingCommand(root)).toEqual(entry);
-    expect(renderCommand(entry)).toBe('/model opus');
+    expect(renderCommand(entry)).toBe('/permission-mode auto');
     fs.rmSync(root, { recursive: true });
   });
 
@@ -219,7 +216,7 @@ describe('pending-command marker', () => {
   test('marker past its TTL is ignored — a request is a moment, not a standing order', () => {
     const root = tmpRoot();
     const stale = new Date(Date.now() - (COMMAND_MARKER_TTL_SECS + 60) * 1000).toISOString();
-    writePendingCommand(root, { command: '/clear', arg: null, by: 'op', requested_at: stale });
+    writePendingCommand(root, { command: '/doctor', arg: null, by: 'op', requested_at: stale });
     expect(readPendingCommand(root)).toBeNull();
     fs.rmSync(root, { recursive: true });
   });
@@ -234,7 +231,7 @@ describe('pending-command marker', () => {
 
   test('clear removes it', () => {
     const root = tmpRoot();
-    writePendingCommand(root, { command: '/clear', arg: null, by: 'op', requested_at: new Date().toISOString() });
+    writePendingCommand(root, { command: '/doctor', arg: null, by: 'op', requested_at: new Date().toISOString() });
     clearPendingCommand(root);
     expect(readPendingCommand(root)).toBeNull();
     fs.rmSync(root, { recursive: true });

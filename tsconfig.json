@@ -14,5 +14,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["plugins/**/*.ts", "tests/**/*.ts"]
+  "include": ["plugins/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "plugins/hermitd/mod/**"]
 }

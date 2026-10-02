@@ -113,9 +113,10 @@ The plugin manifest registers 16 shared hooks. The four resident-only hooks (`pa
 | Config validator | PostToolUse `Edit\|Write` | Validates `config.json`'s required keys, types, routine time formats, and channel structure |
 | Summary generator | PostToolUse `Edit\|Write` | Regenerates `state-summary.md` when a `state/` file is edited |
 | Usage tracker | PostToolUse `Read` | Appends a usage event to `state/usage-metrics.jsonl` when a `compiled/` artifact is read |
-| Prompt pipeline | UserPromptSubmit | Records the operator action, injects time and the channel reply reminder, then applies pause, harness-command, shutdown, and status in explicit precedence |
+| Prompt pipeline | UserPromptSubmit | Runs resident, conversation and channel gates before audit; shutdown takes precedence over pause and command handling. Its harness mode returns native mod command decisions through the same stages |
+| Chat harness mod | `prompt.submit`, `turn.complete` | Executes trusted chat commands and deferred switches natively, observes outcomes and replies through the core verb; dispatch-scoped model approval preserves settings-level deny or ask |
 | Context loader | SessionStart | Classifies residency, seeds resident activity when absent, and loads session context; on a managed session (`HERMIT_MANAGED=1`) also stamps the launch env into `runtime.json` |
-| Stop pipeline | Stop | Runs cost tracking, harness commands, and the heartbeat stamp; a channel checkpoint (intake or reply) may block the stop |
+| Stop pipeline | Stop | Runs cost tracking, permission-mode and doctor delivery, and the heartbeat stamp; a channel checkpoint (intake or reply) may block the stop |
 | StopFailure stamp | StopFailure | Records the turn's typed upstream failure to `state/stop-failure.json`; the watchdog classifies from it and notifies |
 | Subagent cost | SubagentStop | Captures async-dispatched subagent token cost from the subagent transcript |
 | PreCompact stamp | PreCompact | Marks the resident execution unknown and stamps its context reset |

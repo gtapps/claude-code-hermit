@@ -1,0 +1,26 @@
+import { afterAll, expect, test } from 'bun:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { checkHarnessMod, resolvePaths } from '../scripts/doctor-check';
+import { freshDirFactory } from './helpers/workdir';
+
+const { freshDir, cleanup } = freshDirFactory('hermit-harness-mod-');
+afterAll(cleanup);
+
+for (const [label, booted, session, status] of [
+  ['current session', true, 'resident', 'ok'],
+  ['absent record', true, null, 'warn'],
+  ['other session', true, 'other', 'warn'],
+  ['never-started install', false, null, 'ok'],
+] as const) {
+  test(label, () => {
+    const root = path.join(freshDir(), '.hermit');
+    const state = path.join(root, 'state');
+    fs.mkdirSync(state, { recursive: true });
+    if (booted) fs.writeFileSync(path.join(state, 'runtime.json'), JSON.stringify({ cc_session_id: 'resident' }));
+    if (session) fs.writeFileSync(path.join(state, 'harness-mod-loaded.json'), JSON.stringify({ session_id: session }));
+    const result = checkHarnessMod(resolvePaths(root, path.resolve(import.meta.dir, '..')));
+    expect(result.status).toBe(status);
+    if (status === 'warn') expect(result.detail).toContain('chat harness commands unavailable');
+  });
+}
