@@ -50,7 +50,7 @@ claude plugin install hermitd-homeassistant@hermitd --scope local
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.283+, a paid Claude plan (Pro, Max, Teams, or Enterprise), [Bun](https://bun.sh) 1.3+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.287+, a paid Claude plan (Pro, Max, Teams, or Enterprise), [Bun](https://bun.sh) 1.3+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
 
 ### 1. Install
 
