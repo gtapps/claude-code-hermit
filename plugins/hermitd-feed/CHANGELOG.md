@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.4] - 2026-10-02
 
 ### Changed
 - The plugin is named `hermitd-feed` in the `hermitd` marketplace, with namespaced skills and core commands updated to match.
