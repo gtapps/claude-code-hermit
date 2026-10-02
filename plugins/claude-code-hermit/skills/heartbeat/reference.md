@@ -5,8 +5,8 @@ The subagent reads only files (no inherited session context) and returns **judgm
 are currently firing, and a human-readable label for each. All bookkeeping (dedup, suppression,
 resolution, the daily digest, monitoring lines, operator notifications, `last_clean_eval_at`, and
 `heartbeat_result`) is derived deterministically by `heartbeat.ts alert-state` from the returned firing set —
-the subagent never authors any of it. This split exists because a small model (`heartbeat.model`,
-haiku by default) asked to author that bookkeeping fabricates fields and flips pending flags.
+the subagent never authors any of it. This split exists because a small model (`heartbeat.model`
+set to haiku) asked to author that bookkeeping fabricates fields and flips pending flags.
 `heartbeat_result` is `OK`, `ALERT`, or `INDETERMINATE` (this return was rejected — nothing written).
 
 This file is read only on the EVALUATE path, once the precheck determines a full LLM tick is warranted.

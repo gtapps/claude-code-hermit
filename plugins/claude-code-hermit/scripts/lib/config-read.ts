@@ -90,7 +90,7 @@ export const TABLE: Record<string, Spec> = {
     stale_threshold: str('2h', { pattern: 'duration' }),
     waiting_timeout: str(null, { pattern: 'duration' }),
     clean_recheck_cooldown: str('6h', { pattern: 'duration', nullable: true }),
-    model: str('haiku'),
+    model: str('sonnet'),
   }),
   quality_gate: shape({ tier: str('budget', { enum: QUALITY_GATE_TIER }) }),
   knowledge: shape({

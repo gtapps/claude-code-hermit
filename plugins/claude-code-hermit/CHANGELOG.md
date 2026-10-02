@@ -5,12 +5,14 @@
 ### Changed
 - An explicit chat assignment ("next task:", "work on") or a message with several requests opens a task even when the work would fit one turn.
 - A bare YES, LATER or NO with one open suggestion acts on it; with several, it acts on none and asks which by suggestion number.
+- The heartbeat evaluator (`heartbeat.model`) and the proposal-triage agent default to Sonnet instead of Haiku.
 
 ### Fixed
 - The host `hermit` launcher works from folders that don't enable the plugin, including when its bound project was deleted.
 
 ### Upgrade Instructions
 1. On tmux hosts, outside the container, run `.claude-code-hermit/bin/hermit-run hermit-cli install` from the project root. `hermit update` and `hermit-docker update` already refresh the launcher.
+2. Read `heartbeat.model` in `.claude-code-hermit/config.json`. If it is `"haiku"`, run `.claude-code-hermit/bin/hermit-run settings-edit .claude-code-hermit/config.json set heartbeat.model sonnet`. Leave any other value alone: an absent key already resolves to `sonnet`, and `null` means the operator chose the session model. Tell the operator: "Heartbeat checks now run on Sonnet because Haiku returned unusable results. To switch back, ask me to set `heartbeat.model` to haiku."
 
 ## [1.4.8] - 2026-09-29
 

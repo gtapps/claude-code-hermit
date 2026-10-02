@@ -188,7 +188,7 @@ const DEFAULT_CONFIG: Json = {
     stale_threshold: '2h',
     waiting_timeout: null,
     clean_recheck_cooldown: '6h',
-    model: 'haiku',
+    model: 'sonnet',
   },
   quality_gate: {
     tier: 'budget',

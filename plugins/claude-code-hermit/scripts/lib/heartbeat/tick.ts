@@ -68,7 +68,7 @@ export async function run(args: string[]): Promise<void> {
   const hermitDir = args[0];
   // Settled once, shared by the model field and the bookkeeping below. Settling
   // preserves an explicit `heartbeat.model: null` (the skill reads it as "inherit
-  // the session model") while folding absent/""/wrong-typed to 'haiku'; the
+  // the session model") while folding absent/""/wrong-typed to 'sonnet'; the
   // reader never writes and never throws.
   const config = readSettledConfig(hermitDir);
   // Mutating precheck, exactly once — before anything below can throw, so a tick
