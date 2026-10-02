@@ -93,7 +93,8 @@ function swap(record) {
   if (hasMarketplace(markets, 'claude-code-hermit')) run('claude', ['plugin', 'marketplace', 'remove', 'claude-code-hermit']);
   markets = marketplaces();
   if (!hasMarketplace(markets, 'hermitd')) run('claude', ['plugin', 'marketplace', 'add', 'gtapps/hermitd']);
-  for (const row of record.installs.filter(row => row.enabled)) {
+  // Local installs outlive their folder (a removed worktree); there is nowhere to reinstall them.
+  for (const row of record.installs.filter(row => row.enabled && (!row.projectPath || fs.existsSync(row.projectPath)))) {
     const cwd = row.projectPath || process.cwd();
     const found = pluginList(cwd).some(current => current.id === newId(row.id) && current.scope === row.scope && (row.scope === 'user' || current.projectPath === row.projectPath));
     if (!found) run('claude', ['plugin', 'install', newId(row.id), '--scope', row.scope], cwd);
@@ -218,7 +219,7 @@ async function main() {
   const shimRemoved = fs.existsSync(oldShim) && !fs.lstatSync(oldShim).isSymbolicLink() && fs.readFileSync(oldShim, 'utf8').split('\n').includes('# claude-code-hermit: managed host CLI');
   if (shimRemoved) fs.unlinkSync(oldShim);
   if (!inventory.projects.every(row => done(row.project))) throw new Error('Incomplete migration: a project stamp is missing');
-  const renames = rows => rows.filter(row => row.enabled).map(row => `${row.id.split('@')[0]} -> ${newId(row.id).split('@')[0]}`).join(', ');
+  const renames = rows => [...new Set(rows.filter(row => row.enabled).map(row => `${row.id.split('@')[0]} -> ${newId(row.id).split('@')[0]}`))].join(', ');
   console.log(`\nMigrated ${inventory.projects.length} agent${inventory.projects.length === 1 ? '' : 's'}:`);
   for (const row of inventory.projects) {
     const docker = row.mode === 'docker';

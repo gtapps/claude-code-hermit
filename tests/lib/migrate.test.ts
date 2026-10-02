@@ -57,7 +57,10 @@ function fixture(dockerOnly = false) {
     { id: 'feed-hermit@claude-code-hermit', scope: 'project', projectPath: projects[0], enabled: false, installPath: oldCore },
   ];
   write(path.join(config, 'stub.json'), JSON.stringify({ markets: dockerOnly ? [] : ['claude-code-hermit'], installs }));
-  write(path.join(dockerConfig, 'stub.json'), JSON.stringify({ markets: ['claude-code-hermit'], installs: [{ id: 'claude-code-hermit@claude-code-hermit', scope: 'project', projectPath: docker, enabled: true, installPath: oldCore }] }));
+  write(path.join(dockerConfig, 'stub.json'), JSON.stringify({ markets: ['claude-code-hermit'], installs: [
+    { id: 'claude-code-hermit@claude-code-hermit', scope: 'project', projectPath: docker, enabled: true, installPath: oldCore },
+    { id: 'claude-code-hermit@claude-code-hermit', scope: 'local', projectPath: path.join(docker, '.claude/worktrees/removed'), enabled: true, installPath: oldCore },
+  ] }));
   write(path.join(config, 'plugins/data/claude-code-hermit-claude-code-hermit/instances.json'), JSON.stringify(projects.map(project_dir => ({ project_dir, name: path.basename(project_dir) }))));
   const bin = path.join(home, 'bin');
   const faultModule = path.join(home, 'fault.ts');
@@ -104,7 +107,7 @@ test('all agents migrate, disabled installs are reported, foreign shim survives,
   expect(result.stdout).toContain('Migrated 3 agents:');
   expect(result.stdout).toContain('two (tmux)');
   expect(result.stdout).toContain('Plugins: claude-code-hermit -> hermitd, claude-code-dev-hermit -> hermitd-dev');
-  expect(result.stdout).toContain('Plugins in container: claude-code-hermit -> hermitd');
+  expect(result.stdout).toContain('Plugins in container: claude-code-hermit -> hermitd\n');
   expect(result.stdout).not.toContain('Project migration complete.');
   expect(f.calls()).not.toContain('install:hermitd-feed');
   expect(fs.readFileSync(path.join(f.home, '.local/bin/hermit'), 'utf8')).toContain('foreign');
