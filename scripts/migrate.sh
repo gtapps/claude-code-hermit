@@ -21,8 +21,9 @@ const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.cla
 const inventoryFile = path.join(configDir, 'hermitd-migration.json');
 const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
 const rerun = 'curl -fsSL https://gtapps.github.io/hermitd/migrate.sh | bash';
+// Compose files interpolate ${PWD}, which spawnSync would otherwise inherit from the caller's shell.
 function run(cmd, args, cwd = process.cwd()) {
-  const result = spawnSync(cmd, args, { cwd, encoding: 'utf8', env: process.env });
+  const result = spawnSync(cmd, args, { cwd, encoding: 'utf8', env: { ...process.env, PWD: cwd } });
   if (result.error || result.status !== 0) throw new Error(`Failed: ${[cmd, ...args].map(quote).join(' ')} (cwd ${cwd})\n${result.error?.message ?? result.stderr}`);
   return result.stdout.trim();
 }

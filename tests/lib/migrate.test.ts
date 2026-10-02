@@ -21,9 +21,10 @@ else if(args[1]==='marketplace'&&args[2]==='add'){db.markets.push('hermitd');mut
 else if(args[1]==='install'){const scope=args[4];const row={id:args[2],scope,enabled:true,installPath:process.env.NEW_CORE};if(scope!=='user')row.projectPath=process.cwd();db.installs.push(row);mutate('install:'+args[2]+':'+scope);}
 else {console.error(args);process.exit(2);}
 `;
-const dockerStub = `#!/usr/bin/env bun
+// Real bun, not the sh wrapper: sh resets an inherited PWD that real docker would see.
+const dockerStub = `#!/usr/bin/env -S \${REAL_BUN}
 import fs from 'node:fs'; import {spawnSync} from 'node:child_process';
-const args=process.argv.slice(2);if(args.slice(0,3).join(' ')!=='compose -f docker-compose.hermit.yml')process.exit(2);
+const args=process.argv.slice(2);if(args.slice(0,3).join(' ')!=='compose -f docker-compose.hermit.yml'||process.env.PWD!==process.cwd())process.exit(2);
 if(args[3]==='ps'){if(process.env.RUNNING==='docker')console.log('container');}
 else if(args[3]==='build'){fs.appendFileSync(process.env.CALLS,'docker:build\\n');if(process.env.FAIL_AT==='docker:build'&&!fs.existsSync(process.env.FAIL_ONCE)){fs.writeFileSync(process.env.FAIL_ONCE,'1');process.exit(17);}}
 else if(args[3]==='run'){
