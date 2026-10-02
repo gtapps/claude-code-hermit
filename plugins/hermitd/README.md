@@ -7,6 +7,8 @@
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
 </p>
 
+> **Notice:** Claude Code 2.1.287 blocks plugins named `claude*`, so this project moved from `claude-code-hermit` to `hermitd`. [How to migrate](#upgrading-from-claude-code-hermit).
+
 # Your own local Claude Tag.
 
 Run an always-on Claude Code agent on your machine or server, for you or your team. Use it from your terminal or the Claude app via [Remote Control](https://code.claude.com/docs/en/remote-control), or connect Discord, Telegram, iMessage, or a custom Claude Code [channel](https://code.claude.com/docs/en/channels).
