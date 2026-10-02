@@ -1,0 +1,7 @@
+# >>> hermitd (managed block — do not edit between markers) >>>
+.hermit/OPERATOR.md
+.hermit/config.json
+.hermit/bin/hermitd-run
+.hermit/compiled/
+.claude/output-styles/hermit-voice.md
+# <<< hermitd <<<

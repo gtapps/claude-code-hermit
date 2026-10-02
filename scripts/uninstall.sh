@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# claude-code-hermit uninstaller.
+# hermitd uninstaller.
 #
-#   curl -fsSL https://gtapps.github.io/claude-code-hermit/uninstall.sh | bash
+#   curl -fsSL https://gtapps.github.io/hermitd/uninstall.sh | bash
 #
 # Removes this folder's watchdog, running session, and plugin installation.
 # Project state is kept unless an operator confirms deletion on a controlling
@@ -13,7 +13,7 @@
 
 set -uo pipefail
 
-PLUGIN="claude-code-hermit@claude-code-hermit"
+PLUGIN="hermitd@hermitd"
 
 FAILURE_COUNT=0
 FAILURE_SUMMARY=""
@@ -52,7 +52,7 @@ can_launch() {
 
 remove_watchdog() {
   local wrapper
-  wrapper=".claude-code-hermit/bin/hermit-watchdog"
+  wrapper=".hermit/bin/hermitd-watchdog"
 
   if [ -f "$wrapper" ]; then
     if [ ! -x "$wrapper" ]; then
@@ -71,7 +71,7 @@ remove_watchdog() {
 
   if command -v crontab >/dev/null 2>&1 \
     && crontab -l 2>/dev/null \
-      | grep -F 'hermit-watchdog run' \
+      | grep -F 'hermitd-watchdog run' \
       | grep -Fq "$PROJECT_ROOT"; then
     warn "cron" "a watchdog entry still references $PROJECT_ROOT"
     say "Remove that line manually with: crontab -e"
@@ -82,12 +82,12 @@ remove_watchdog() {
 
 stop_session() {
   local docker_wrapper stop_wrapper runtime_file
-  docker_wrapper=".claude-code-hermit/bin/hermit-docker"
-  stop_wrapper=".claude-code-hermit/bin/hermit-stop"
-  runtime_file=".claude-code-hermit/state/runtime.json"
+  docker_wrapper=".hermit/bin/hermitd-docker"
+  stop_wrapper=".hermit/bin/hermitd-stop"
+  runtime_file=".hermit/state/runtime.json"
 
   # runtime_mode is frozen at boot and never cleared on stop, so it alone does
-  # not mean a session is live. Mirror hermit-start's cleanlyStopped test:
+  # not mean a session is live. Mirror hermitd-start's cleanlyStopped test:
   # session_state "idle" or a non-null shutdown_completed_at means it is down.
   if [ -f "$runtime_file" ] \
     && grep -q '"runtime_mode"[[:space:]]*:[[:space:]]*"interactive"' "$runtime_file" \
@@ -103,10 +103,10 @@ stop_session() {
       if "$docker_wrapper" down; then
         ok "docker" "container stopped; the claude-config volume was kept"
       else
-        record_failure "Docker session stop failed" "docker" "hermit-docker down failed; the claude-config volume was kept"
+        record_failure "Docker session stop failed" "docker" "hermitd-docker down failed; the claude-config volume was kept"
       fi
     else
-      warn "docker" "compose file remains, but the hermit-docker wrapper is absent"
+      warn "docker" "compose file remains, but the hermitd-docker wrapper is absent"
     fi
   else
     ok "docker" "compose file already absent"
@@ -117,7 +117,7 @@ stop_session() {
     if "$stop_wrapper"; then
       ok "session" "tmux session stopped"
     else
-      record_failure "tmux session stop failed" "session" "hermit-stop failed"
+      record_failure "tmux session stop failed" "session" "hermitd-stop failed"
     fi
   elif [ -f "$stop_wrapper" ]; then
     record_failure "session stop wrapper is not executable" "session" "could not run $stop_wrapper"
@@ -130,9 +130,9 @@ stop_session() {
 
 remove_host_registration() {
   local wrapper
-  wrapper=".claude-code-hermit/bin/hermit-run"
+  wrapper=".hermit/bin/hermitd-run"
   if [ -x "$wrapper" ]; then
-    if ! "$wrapper" hermit-cli prune "$PROJECT_ROOT"; then
+    if ! "$wrapper" hermitd-cli prune "$PROJECT_ROOT"; then
       record_failure "host registry cleanup failed" "registry" "could not remove this project's registration"
     fi
   elif [ -f "$wrapper" ]; then
@@ -142,16 +142,16 @@ remove_host_registration() {
 
 remove_unused_host_shim() {
   local shim installs
-  shim="$HOME/.local/bin/hermit"
+  shim="$HOME/.local/bin/hermitd"
   [ -f "$shim" ] || return 0
-  grep -Fxq '# claude-code-hermit: managed host CLI' "$shim" || return 0
+  grep -Fxq '# hermitd: managed host CLI' "$shim" || return 0
   # Failure to inspect is not evidence that the last core install is gone.
   installs="$(claude plugin list --json 2>/dev/null)" || return 0
   if printf '%s' "$installs" | bun -e '
     try {
       const rows = JSON.parse(require("fs").readFileSync(0, "utf8"));
       if (!Array.isArray(rows) || rows.some(p => typeof p.id !== "string")) process.exit(1);
-      process.exit(rows.some(p => p.id.startsWith("claude-code-hermit@")) ? 1 : 0);
+      process.exit(rows.some(p => p.id.startsWith("hermitd@")) ? 1 : 0);
     } catch { process.exit(1); }
   '; then
     if ! rm "$shim"; then
@@ -223,7 +223,7 @@ maybe_delete_state() {
     IFS= read -r answer </dev/tty || true
     case "$answer" in
       y|Y|yes|YES|Yes)
-        if rm -rf ".claude-code-hermit" \
+        if rm -rf ".hermit" \
           && rm -f "Dockerfile.hermit" "docker-compose.hermit.yml" \
             "docker-entrypoint.hermit.sh" "docker-compose.security.yml"; then
           ok "state" "hermit state and rendered Docker files deleted"
@@ -246,19 +246,19 @@ maybe_delete_state() {
 
 cleanup_prompt() {
   cat <<'PROMPT'
-Clean up the shared-file leftovers from uninstalling claude-code-hermit in this project. Detect first, then remove only hermit-attributable content. Act on each item only if it is present, show me a diff before every write, and touch nothing else. If an entry could predate hermit or reflect a deliberate operator choice, flag it and ask instead of deleting it. Examples include a generic Artifact grant, a language key, or a permission entry I may use myself.
+Clean up the shared-file leftovers from uninstalling hermitd in this project. Detect first, then remove only hermit-attributable content. Act on each item only if it is present, show me a diff before every write, and touch nothing else. If an entry could predate hermit or reflect a deliberate operator choice, flag it and ask instead of deleting it. Examples include a generic Artifact grant, a language key, or a permission entry I may use myself.
 
 Check these item classes:
 
 1. In whichever of CLAUDE.md or CLAUDE.local.md contains it, remove the core block from the opening marker:
-<!-- claude-code-hermit: Session Discipline -->
+<!-- hermitd: Session Discipline -->
 through the closing marker:
-<!-- /claude-code-hermit: Session Discipline -->
+<!-- /hermitd: Session Discipline -->
 Include any blank line or standalone separator immediately above the opening marker. If the block predates the closing marker, fall back to the first standalone separator after the opening marker, or end of file. Leave every other plugin's marked block alone.
 
 2. In whichever of .claude/settings.local.json or .claude/settings.json contains them, inspect for hermit-attributable settings. Illustrative examples are permissions.allow or permissions.deny entries referencing hermit scripts or paths; the Artifact grant, which must be flagged rather than auto-deleted; outputStyle when it names hermit-voice; env keys ending in _STATE_DIR; and the boot-written mirror keys language, crossSessionInbound, and isolatePeerMachines. Do not remove sandbox because hermit never writes it. There is no hooks key to clean. Flag any generic permission or setting I may still want.
 
-3. Inspect hermit-rendered or marked files elsewhere. Delete .claude/output-styles/hermit-voice.md if present. Remove only the managed block between the claude-code-hermit markers in .worktreeinclude. Review .gitignore hermit lines one at a time because they have no markers, and flag any line I may still want. Remove the # --- claude-code-hermit --- block from .env and review the related .env entries in .gitignore and .dockerignore. Offer to delete .claude.local/ (channel tokens) and .claude/cost-log.jsonl (hermit-written). Leave .claude/scheduled_tasks.lock because Claude Code owns it.
+3. Inspect hermit-rendered or marked files elsewhere. Delete .claude/output-styles/hermit-voice.md if present. Remove only the managed block between the hermitd markers in .worktreeinclude. Review .gitignore hermit lines one at a time because they have no markers, and flag any line I may still want. Remove the # --- hermitd --- block from .env and review the related .env entries in .gitignore and .dockerignore. Offer to delete .claude.local/ (channel tokens) and .claude/cost-log.jsonl (hermit-written). Leave .claude/scheduled_tasks.lock because Claude Code owns it.
 
 Exclude auto-memory, the marketplace registration, docker-entrypoint.hermit-local.sh, and everything under ~/ from this cleanup.
 PROMPT
@@ -294,9 +294,9 @@ print_auto_memory_notice() {
 # ------------------------------------------------------------------- main ----
 
 main() {
-  printf '\n  \033[1mclaude-code-hermit uninstall\033[0m\n\n'
+  printf '\n  \033[1mhermitd uninstall\033[0m\n\n'
 
-  if [ ! -f ".claude-code-hermit/config.json" ]; then
+  if [ ! -f ".hermit/config.json" ]; then
     say "nothing to uninstall here"
     return 0
   fi

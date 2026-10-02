@@ -5,13 +5,13 @@ description: Refresh or verify the hermit cost rate table against Anthropic's li
 
 # Pricing refresh
 
-Compare `plugins/claude-code-hermit/scripts/lib/pricing.ts` to Anthropic's live
+Compare `plugins/hermitd/scripts/lib/pricing.ts` to Anthropic's live
 docs and, **only after explicit confirmation**, edit the table. Do not run this
-on a schedule. Do not write anything under an operator's `.claude-code-hermit/`.
+on a schedule. Do not write anything under an operator's `.hermit/`.
 
 ## Step 1 — Read the table
 
-Read `plugins/claude-code-hermit/scripts/lib/pricing.ts`. Record every `PRICING`
+Read `plugins/hermitd/scripts/lib/pricing.ts`. Record every `PRICING`
 key, its `{ input, output, cacheReadMult?, fast? }` rates, the `CACHE_WRITE_5M` /
 `CACHE_WRITE_1H` / `CACHE_READ` multipliers, and `PRICING_VERIFIED`.
 
@@ -31,7 +31,7 @@ standard input rate), never as an absolute $/MTok figure.
 
 ## Step 3 — Unknown ids in the log
 
-From `.claude-code-hermit/cost-log.jsonl` (this repo's own hermit dir, last 30
+From `.hermit/cost-log.jsonl` (this repo's own hermit dir, last 30
 days of `timestamp`), list distinct `model` values that are not exact
 `PRICING` keys (dated `<key>-YYYYMMDD` snapshots of an existing key count as
 exact). Print them. Do not edit operator installs.
@@ -47,11 +47,11 @@ Stop here unless the operator confirms an edit.
 
 If the operator explicitly confirms:
 
-1. Edit `plugins/claude-code-hermit/scripts/lib/pricing.ts` rates and keys to
+1. Edit `plugins/hermitd/scripts/lib/pricing.ts` rates and keys to
    match the live table. Set `PRICING_VERIFIED` to today's date (`YYYY-MM-DD`).
-2. Add a `### Fixed` bullet under `plugins/claude-code-hermit/CHANGELOG.md`
+2. Add a `### Fixed` bullet under `plugins/hermitd/CHANGELOG.md`
    `[Unreleased]`: rate table refreshed for the current generations.
-3. Run `cd plugins/claude-code-hermit && bun test tests/pricing.test.ts`.
+3. Run `cd plugins/hermitd && bun test tests/pricing.test.ts`.
 
 Do not commit. Do not bump `min_claude_code_version`. Do not add a hook, a
 routine, or a `config.json` entry.

@@ -1,0 +1,25 @@
+{
+  "name": "hermitd-fitness",
+  "version": "0.2.3",
+  "dependencies": [
+    {
+      "name": "hermitd",
+      "version": "^1.4.8"
+    }
+  ],
+  "description": "Fitness coaching for Hermit, with read-only Strava access, activity analysis, training plans, and recovery flags.",
+  "author": {
+    "name": "gtapps",
+    "url": "https://github.com/gtapps"
+  },
+  "repository": "https://github.com/gtapps/hermitd",
+  "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-fitness",
+  "license": "MIT",
+  "keywords": [
+    "fitness",
+    "strava",
+    "training",
+    "mcp",
+    "gtapps"
+  ]
+}

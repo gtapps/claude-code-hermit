@@ -1,8 +1,8 @@
-# Contributing to claude-code-hermit
+# Contributing to hermitd
 
 ## Filing an Issue
 
-Bugs and ideas go through the [issue forms](https://github.com/gtapps/claude-code-hermit/issues/new/choose). Questions and install help are faster in [Discord](https://discord.gg/54sJqAxhUh).
+Bugs and ideas go through the [issue forms](https://github.com/gtapps/hermitd/issues/new/choose). Questions and install help are faster in [Discord](https://discord.gg/54sJqAxhUh).
 
 The rest of this guide is for code changes.
 
@@ -26,10 +26,10 @@ Test the plugin against a target project using `--plugin-dir`:
 
 ```bash
 cd /path/to/your-project
-claude --plugin-dir /path/to/claude-code-hermit
+claude --plugin-dir /path/to/hermitd
 ```
 
-Then run `/claude-code-hermit:hatch` to create the state directory. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
+Then run `/hermitd:hatch` to create the state directory. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
 
 ### Testing a branch via marketplace install
 
@@ -37,11 +37,11 @@ Then run `/claude-code-hermit:hatch` to create the state directory. Edits to ski
 
 ```bash
 # In the target project — your monorepo checkout must be on the branch under test
-claude plugin marketplace add /path/to/claude-code-hermit --scope project
-claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
+claude plugin marketplace add /path/to/hermitd --scope project
+claude plugin install hermitd-fitness@hermitd --scope project
 ```
 
-The `@claude-code-hermit` suffix disambiguates when both a user-scoped and a project-scoped marketplace share the same name. Remove the project marketplace when done (`claude plugin marketplace remove claude-code-hermit --scope project`).
+The `@hermitd` suffix disambiguates when both a user-scoped and a project-scoped marketplace share the same name. Remove the project marketplace when done (`claude plugin marketplace remove hermitd --scope project`).
 
 ## Testing
 
@@ -60,16 +60,16 @@ Assistant's historical safety corpus requires Python with `python-dotenv` and
 For a core-only change:
 
 ```bash
-( cd plugins/claude-code-hermit && bun test )
+( cd plugins/hermitd && bun test )
 ```
 
 For HA-hermit changes:
 
 ```bash
-( cd plugins/claude-code-homeassistant-hermit && bun test )
+( cd plugins/hermitd-homeassistant && bun test )
 ```
 
-See [Testing](plugins/claude-code-hermit/docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
+See [Testing](plugins/hermitd/docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
 
 ## PR Workflow
 
@@ -126,15 +126,15 @@ Every plugin in this fleet that depends on the core hermit declares three versio
 **`.claude-plugin/hermit-meta.json`** (hermit-internal; not validated by `claude plugin tag`):
 ```json
 "required_core_version": ">=1.0.21",
-"requires": { "claude-code-hermit": ">=1.0.21" }
+"requires": { "hermitd": ">=1.0.21" }
 ```
 
 **`.claude-plugin/plugin.json`** (native Claude Code resolver field):
 ```json
-"dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.21" }]
+"dependencies": [{ "name": "hermitd", "version": "^1.0.21" }]
 ```
 
-`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check) and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/hooks.contract.test.ts` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
+`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check) and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.hermit` field mirrors it — the two must agree, and `tests/hooks.contract.test.ts` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
 
 When releasing core and a domain plugin together, use `/fleet-release` — it updates all three fields automatically after the core prep commit, before the domain plugin's release runs.
 
@@ -142,7 +142,7 @@ When releasing core and a domain plugin together, use `/fleet-release` — it up
 
 Each plugin owns its own test entry point. Two conventions ship:
 
-- **`bun test`** (core and HA) — run from the plugin dir; auto-discovers `tests/*.test.ts`, no runner script. `plugins/claude-code-hermit/` and `plugins/claude-code-homeassistant-hermit/`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
+- **`bun test`** (core and HA) — run from the plugin dir; auto-discovers `tests/*.test.ts`, no runner script. `plugins/hermitd/` and `plugins/hermitd-homeassistant/`. See [`docs/testing.md`](plugins/hermitd/docs/testing.md) for fixtures and how to write new tests.
 - **`bash tests/run-all.sh`** (dev, fitness, scribe, forge) — a bash entry point that returns non-zero on any failure. Forge's runner also installs the PHP/composer deps its suite needs.
 
 CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow one of the two conventions above, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.

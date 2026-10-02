@@ -40,7 +40,7 @@ const statuses = statusArg
   : OPEN_STATUSES;
 
 const repoRoot = execSync("git rev-parse --show-toplevel").toString().trim();
-const hermitDir = arg("--hermit-dir", join(repoRoot, ".claude-code-hermit"));
+const hermitDir = arg("--hermit-dir", join(repoRoot, ".hermit"));
 const outPath = arg(
   "--out",
   join(process.env.CLAUDE_JOB_DIR || tmpdir(), "stale-proposals-evidence.md"),

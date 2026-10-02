@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Single-shot hermitd watchdog — dead-session restart, wedge detection, re-arm fallback.
+# Run from project root: .hermit/bin/hermitd-watchdog [run|install|uninstall]
+# Subcommands:
+#   run        (default) — one decision cycle; exit 0 always
+#   install    — install OS scheduler timer (systemd/launchd/cron)
+#   uninstall  — remove the installed timer
+exec "$(dirname "$0")/hermitd-run" hermitd-watchdog "$@"

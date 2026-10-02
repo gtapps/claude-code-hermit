@@ -18,7 +18,7 @@ Before changing a plugin, read its `plugins/<slug>/AGENTS.md`. Load only the gui
 - Hook stdout, tool output, and skill-driven reads enter operator context. Use scripts for deterministic work and bounded log/database summaries; do not ask the model to read unbounded state or reproduce calculations. Print verdict-sized digests, and add always-loaded instructions only when their recurring behavioral value justifies the context cost.
 - `state-templates/CLAUDE-APPEND.md` is installed product content, separate from development instructions. Describe behavior there without restating config values such as schedules, channel IDs, identity, or mode flags.
 - Core's `scripts/domain-hatch.ts` and `lib/domain-hatch/` own target resolution and `state/hatch-options.json`. Consumers use `domain-hatch preflight`, `ensure-target`, and `sync-block`; read those contracts before changing routing.
-- Before changing plugin storage or routine registration, read [the storage contract](plugins/claude-code-hermit/docs/plugin-hermit-storage.md) or [routine authoring](plugins/claude-code-hermit/docs/routine-authoring.md), respectively.
+- Before changing plugin storage or routine registration, read [the storage contract](plugins/hermitd/docs/plugin-hermit-storage.md) or [routine authoring](plugins/hermitd/docs/routine-authoring.md), respectively.
 
 ## Development and verification
 
@@ -33,7 +33,7 @@ From the root: `bun install --frozen-lockfile` installs tooling; `bunx tsc` chec
 
 Local guides cover special prerequisites. Behavior changes need regression coverage, the affected plugin's complete suite, and `bunx tsc`. Shared contract changes also need root `bun test tests/cross-plugin/ tests/lib/`. CI is path-filtered under `.github/workflows/`; root toolchain changes affect every suite. For docs-only changes, check references, effective scope, and applicable documentation contracts.
 
-Use Context7 for library/API documentation, code generation, and setup/configuration guidance. Verify harness-dependent behavior with an isolated empirical probe before building on it, and report verification gaps. For Claude Code probes, use the installed `probe` skill for the procedure and model choice; live evidence takes precedence over documentation, memory, or assumptions. Consult [Auto-mode Classifier](plugins/claude-code-hermit/docs/security.md#auto-mode-classifier) when working on Claude Code permissions. Preserve unrelated work and choose the smallest demonstrated fix.
+Use Context7 for library/API documentation, code generation, and setup/configuration guidance. Verify harness-dependent behavior with an isolated empirical probe before building on it, and report verification gaps. For Claude Code probes, use the installed `probe` skill for the procedure and model choice; live evidence takes precedence over documentation, memory, or assumptions. Consult [Auto-mode Classifier](plugins/hermitd/docs/security.md#auto-mode-classifier) when working on Claude Code permissions. Preserve unrelated work and choose the smallest demonstrated fix.
 
 ## Commits and releases
 
@@ -46,7 +46,7 @@ Use Context7 for library/API documentation, code generation, and setup/configura
 ## Worktrees and environment
 
 - Launch Claude Code from the repository root.
-- `git rev-parse --show-toplevel` is the editing boundary. From a linked worktree, do not `cd` into, edit, or use `git -C` on the main checkout or sibling worktrees. The shared main-rooted `.claude-code-hermit/` path is the exception: it is ignored live state, not a test fixture; touch it only for authorized operational work.
+- `git rev-parse --show-toplevel` is the editing boundary. From a linked worktree, do not `cd` into, edit, or use `git -C` on the main checkout or sibling worktrees. The shared main-rooted `.hermit/` path is the exception: it is ignored live state, not a test fixture; touch it only for authorized operational work.
 - Old standalone Dev and Home Assistant repositories are redirect-only; do not push code there. Use `git log --first-parent` for monorepo history because subtree imports are unsquashed.
 - Credentials belong in ignored `.env` or `.claude.local/` files, never checked-in `.claude/` configuration or diagnostic output. Docker mounts preserve the host's absolute repository path. Use explicit working directories for commands and tests.
 - Use `rm -r`, never `rm -rf`, for scratch cleanup.

@@ -1,8 +1,8 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.4.8-green.svg" alt="Version 1.4.8" /></a>
-  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
+  <a href="plugins/hermitd/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.4.8-green.svg" alt="Version 1.4.8" /></a>
+  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/hermitd/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
 </p>
@@ -16,14 +16,14 @@ Give it ongoing responsibilities: maintain research, monitor systems, run routin
 Run it on your Claude subscription and extend it with your own MCP servers, skills, and plugins.
 
 <p align="center">
-  <img src="plugins/claude-code-hermit/assets/cover.png" alt="Always-on Claude Code agent" />
+  <img src="plugins/hermitd/assets/cover.png" alt="Always-on Claude Code agent" />
 </p>
 
 <a id="quick-start"></a>
 
 ## Set up
 
-**Choose one installation method below.** Run it from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](plugins/claude-code-hermit/docs/how-to-use.md#prerequisites).
+**Choose one installation method below.** Run it from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](plugins/hermitd/docs/how-to-use.md#prerequisites).
 
 <details open>
 <summary>Install the Claude Code plugin</summary>
@@ -31,9 +31,9 @@ Run it on your Claude subscription and extend it with your own MCP servers, skil
 With Claude Code 2.1.283+ and Bun 1.3+ installed:
 
 ```bash
-claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope local
-claude "/claude-code-hermit:hatch"
+claude plugin marketplace add gtapps/hermitd
+claude plugin install hermitd@hermitd --scope local
+claude "/hermitd:hatch"
 ```
 
 </details>
@@ -44,7 +44,7 @@ claude "/claude-code-hermit:hatch"
 Prepares Claude Code, Bun, and tmux, installs the plugin, and launches setup:
 
 ```bash
-curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
+curl -fsSL https://gtapps.github.io/hermitd/install.sh | bash
 ```
 
 </details>
@@ -60,28 +60,28 @@ After setup, follow the printed next steps to start your agent.
 Run in a persistent tmux session:
 
 ```bash
-hermit start
+hermitd start
 ```
 
-Requires tmux. The watchdog recovers failed sessions while your machine stays on. Claude Code's `/sandbox` is recommended for unattended use. To connect a chat, run `/claude-code-hermit:channel-setup` as directed by the setup handoff.
+Requires tmux. The watchdog recovers failed sessions while your machine stays on. Claude Code's `/sandbox` is recommended for unattended use. To connect a chat, run `/hermitd:channel-setup` as directed by the setup handoff.
 
-[Host setup and operations](plugins/claude-code-hermit/docs/always-on-ops.md)
+[Host setup and operations](plugins/hermitd/docs/always-on-ops.md)
 
 ### In Docker
 
 Run the guided setup in Claude Code:
 
 ```text
-/claude-code-hermit:docker-setup
+/hermitd:docker-setup
 ```
 
 Builds and starts the container, then walks you through authentication and channel pairing. Requires Docker Compose v2.
 
-[Docker setup](plugins/claude-code-hermit/docs/always-on.md)
+[Docker setup](plugins/hermitd/docs/always-on.md)
 
 **Customize the container.** Ask the agent to add tools, packages, or services to its Docker setup. For example: “Add ffmpeg to the container.”
 
-Optional [Docker security controls](plugins/claude-code-hermit/docs/docker-security.md) cover local-network access, DNS policy, resource limits, and plugin installation auditing.
+Optional [Docker security controls](plugins/hermitd/docs/docker-security.md) cover local-network access, DNS policy, resource limits, and plugin installation auditing.
 
 ## What the plugin adds
 
@@ -142,10 +142,10 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `context_hygiene.compact` | compact long-running active context: **enabled**, `100000` compactible tokens / `4h` cooldown |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context: **`65`** |
 | `MAX_THINKING_TOKENS` | thinking-token cap per turn: **`10000`** |
-| `watchdog.scheduler_enabled` | OS scheduler for the watchdog tick: **`true`** on tmux always-on (auto-installed at boot); `false` or `hermit-watchdog uninstall` opts out |
+| `watchdog.scheduler_enabled` | OS scheduler for the watchdog tick: **`true`** on tmux always-on (auto-installed at boot); `false` or `hermitd-watchdog uninstall` opts out |
 | `watchdog.enabled` | recovery/restart tier: **`false`** until first scheduler registration (or `/docker-setup`); hygiene still runs |
 
-Full schema in the [Config Reference](plugins/claude-code-hermit/docs/config-reference.md)
+Full schema in the [Config Reference](plugins/hermitd/docs/config-reference.md)
 
 ## Observe
 
@@ -209,35 +209,35 @@ Quiet heartbeat checks, skipped routines, and passive chat capture use no model 
 - **Set limits.** Optional daily, weekly, and monthly caps can alert you or enforce a pause until the exceeded budget window resets. Under Claude subscription billing, dollar figures are usage estimates rather than additional per-token charges.
 - **Choose where to spend.** Set the session model and optionally assign a different model to individual routines. Routine models run in isolated subagents, so use them for work that can return a concise result.
 
-See [budgets](plugins/claude-code-hermit/docs/config-reference.md#budget) and [routine scheduling](plugins/claude-code-hermit/docs/routine-authoring.md) for configuration and scheduler fallback behavior.
+See [budgets](plugins/hermitd/docs/config-reference.md#budget) and [routine scheduling](plugins/hermitd/docs/routine-authoring.md) for configuration and scheduler fallback behavior.
 
 ## Remote work
 
 Reach the running agent through your connected channels or Claude Code Remote Control. You can also start separate sessions for additional work:
 
-- **Background sessions with follow-up.** Through [`/spawn-session`](plugins/claude-code-hermit/skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in the project, or in another folder with `--cwd`, and relays its status when it becomes idle. Claude Code isolates the helper's edits in a Git worktree unless the project sets `worktree.bgIsolation` to `none`; pass `--worktree` to give it one from the start. Set the helper’s model and effort with options such as `--model sonnet --effort high`.
-- **Local [Remote Control](https://code.claude.com/docs/en/remote-control) gate.** Through [`/rc-gate`](plugins/claude-code-hermit/skills/rc-gate/SKILL.md), the agent manages a Remote Control server on your machine or server. While the gate is open, you can spawn new Claude Code sessions from the Claude app, using your local files and tools. Each session gets its own Git worktree, while the agent keeps running.
+- **Background sessions with follow-up.** Through [`/spawn-session`](plugins/hermitd/skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in the project, or in another folder with `--cwd`, and relays its status when it becomes idle. Claude Code isolates the helper's edits in a Git worktree unless the project sets `worktree.bgIsolation` to `none`; pass `--worktree` to give it one from the start. Set the helper’s model and effort with options such as `--model sonnet --effort high`.
+- **Local [Remote Control](https://code.claude.com/docs/en/remote-control) gate.** Through [`/rc-gate`](plugins/hermitd/skills/rc-gate/SKILL.md), the agent manages a Remote Control server on your machine or server. While the gate is open, you can spawn new Claude Code sessions from the Claude app, using your local files and tools. Each session gets its own Git worktree, while the agent keeps running.
 
 Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
 
 **Watch other sessions.** Through [Claude Code cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), ask the agent to watch a local Claude Code session, including one you started interactively, and notify you when it next becomes idle.
 
-**Claude Code controls from chat.** Use `!model sonnet`, `!effort high`, `!advisor opus`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), and `!permission-mode auto` directly from your connected chat. Control the agent’s work with `!pause`, `!resume`, and `!snooze 2h`. Use [`/when-done-switch-to --model sonnet`](plugins/claude-code-hermit/skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
+**Claude Code controls from chat.** Use `!model sonnet`, `!effort high`, `!advisor opus`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), and `!permission-mode auto` directly from your connected chat. Control the agent’s work with `!pause`, `!resume`, and `!snooze 2h`. Use [`/when-done-switch-to --model sonnet`](plugins/hermitd/skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
 
 ## Extensions
 
 Optional plugins that add domain tools and workflows to your agent.
 
-- [dev-hermit](plugins/claude-code-dev-hermit/README.md): Branch discipline, push guards, and gated PR workflows.
-- [homeassistant-hermit](plugins/claude-code-homeassistant-hermit/README.md): Home Assistant tools, automation workflows, and safety checks.
-- [fitness-hermit](plugins/claude-code-fitness-hermit/README.md): Strava integration, activity analysis, and training routines.
-- [feed-hermit](plugins/feed-hermit/README.md): Source curation, recurring briefs, and weekly synthesis.
-- [laravel-forge-hermit](plugins/laravel-forge-hermit/README.md): Laravel Forge deployments, logs, and server management.
-- [hermit-scribe](plugins/hermit-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
+- [dev-hermit](plugins/hermitd-dev/README.md): Branch discipline, push guards, and gated PR workflows.
+- [homeassistant-hermit](plugins/hermitd-homeassistant/README.md): Home Assistant tools, automation workflows, and safety checks.
+- [fitness-hermit](plugins/hermitd-fitness/README.md): Strava integration, activity analysis, and training routines.
+- [hermitd-feed](plugins/hermitd-feed/README.md): Source curation, recurring briefs, and weekly synthesis.
+- [hermitd-laravel-forge](plugins/hermitd-laravel-forge/README.md): Laravel Forge deployments, logs, and server management.
+- [hermit-scribe](plugins/hermitd-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
 
-You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](plugins/claude-code-hermit/docs/creating-your-own-hermit.md).
+You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](plugins/hermitd/docs/creating-your-own-hermit.md).
 
-**External orchestration.** Other agents and tools can check the agent’s status, health, and recent work through its [MCP interface](plugins/claude-code-hermit/docs/external-control-surface.md), and request a wake when needed.
+**External orchestration.** Other agents and tools can check the agent’s status, health, and recent work through its [MCP interface](plugins/hermitd/docs/external-control-surface.md), and request a wake when needed.
 
 ## Maintenance
 
@@ -245,28 +245,40 @@ You can run separate agents for different responsibilities, each with its own wo
 
 **Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
+## Upgrading from claude-code-hermit
+
+Before migrating, update every registered agent in the Claude config directory to core **1.4.8** and stop all of them, including Docker agents. Run once on the host:
+
+```bash
+curl -fsSL https://gtapps.github.io/hermitd/migrate.sh | bash
+```
+
+The migration records every agent before replacing the marketplace, moves project state to `.hermit/`, refreshes launchers and permissions, and rebuilds Docker images. Customized managed files receive `.bak` copies. If interrupted, rerun the same command to resume. Disabled plugin installs are reported and are not reinstalled.
+
+Follow the printed start command for each agent, then run `/hermitd:hermit-evolve`. Pending `later` commands that still use old paths are reported for re-arming.
+
 ## Upgrading
 
-Run `hermit update` from the project folder, or `hermit update <name>` from anywhere. Docker updates refresh the host core first, then the container.
+Run `hermitd update` from the project folder, or `hermitd update <name>` from anywhere. Docker updates refresh the host core first, then the container.
 
-`hermit list` shows registered and discovered hermits on this host, including stopped and missing projects. `hermit status [name]` shows transport, execution and its age, open and waiting tasks, and the first runnable task. Both support `--json`. Listing never removes entries; `hermit prune` removes missing projects.
+`hermitd list` shows registered and discovered hermits on this host, including stopped and missing projects. `hermitd status [name]` shows transport, execution and its age, open and waiting tasks, and the first runnable task. Both support `--json`. Listing never removes entries; `hermitd prune` removes missing projects.
 
-Use `hermit start|stop|restart|attach [name]` for lifecycle commands, `hermit pause [name] on|off|snooze <duration>|status`, `hermit watchdog [name] run|install|uninstall`, or `hermit run [name] <script> [args]` for maintenance. Names match the project folder or agent name; with no name, the nearest project above the current folder is used.
+Use `hermitd start|stop|restart|attach [name]` for lifecycle commands, `hermitd pause [name] on|off|snooze <duration>|status`, `hermitd watchdog [name] run|install|uninstall`, or `hermitd run [name] <script> [args]` for maintenance. Names match the project folder or agent name; with no name, the nearest project above the current folder is used.
 
-See the [Upgrade guide](plugins/claude-code-hermit/docs/upgrading.md) for details.
+See the [Upgrade guide](plugins/hermitd/docs/upgrading.md) for details.
 
 <a id="tips--tuning"></a>
 
 ## Guides
 
-- **Configure:** the [Config Reference](plugins/claude-code-hermit/docs/config-reference.md) covers the full schema and tuning details.
-- **Use:** [Getting Started](plugins/claude-code-hermit/docs/how-to-use.md) and the [Owner's Guide](plugins/claude-code-hermit/docs/owners-guide.md) cover everyday work, decisions, and controls.
-- **Automate:** [Routine Authoring](plugins/claude-code-hermit/docs/routine-authoring.md) covers schedules and prechecks. [Channel configuration](plugins/claude-code-hermit/docs/config-reference.md#channels) includes third-party channel plugins.
-- **Observe:** [Artifacts](plugins/claude-code-hermit/docs/artifacts.md) explains the dashboard, proposals, and weekly reviews.
-- **Maintain:** [Upgrading](plugins/claude-code-hermit/docs/upgrading.md), [Backup](plugins/claude-code-hermit/docs/backup.md), [Troubleshooting](plugins/claude-code-hermit/docs/troubleshooting.md), and [Uninstalling](plugins/claude-code-hermit/docs/how-to-use.md#install).
-- **Understand:** [Architecture](plugins/claude-code-hermit/docs/architecture.md), [Security](plugins/claude-code-hermit/docs/security.md), and [FAQ](plugins/claude-code-hermit/docs/faq.md).
+- **Configure:** the [Config Reference](plugins/hermitd/docs/config-reference.md) covers the full schema and tuning details.
+- **Use:** [Getting Started](plugins/hermitd/docs/how-to-use.md) and the [Owner's Guide](plugins/hermitd/docs/owners-guide.md) cover everyday work, decisions, and controls.
+- **Automate:** [Routine Authoring](plugins/hermitd/docs/routine-authoring.md) covers schedules and prechecks. [Channel configuration](plugins/hermitd/docs/config-reference.md#channels) includes third-party channel plugins.
+- **Observe:** [Artifacts](plugins/hermitd/docs/artifacts.md) explains the dashboard, proposals, and weekly reviews.
+- **Maintain:** [Upgrading](plugins/hermitd/docs/upgrading.md), [Backup](plugins/hermitd/docs/backup.md), [Troubleshooting](plugins/hermitd/docs/troubleshooting.md), and [Uninstalling](plugins/hermitd/docs/how-to-use.md#install).
+- **Understand:** [Architecture](plugins/hermitd/docs/architecture.md), [Security](plugins/hermitd/docs/security.md), and [FAQ](plugins/hermitd/docs/faq.md).
 
-[All documentation](plugins/claude-code-hermit/docs/)
+[All documentation](plugins/hermitd/docs/)
 
 ## Community
 

@@ -26,4 +26,4 @@ jobs:
           bun-version: '1.4.0'
       - run: bun install --frozen-lockfile
       - run: bun test tests/env-example-refs.test.ts
-        working-directory: plugins/claude-code-hermit
+        working-directory: plugins/hermitd

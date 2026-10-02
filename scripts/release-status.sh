@@ -18,7 +18,7 @@ version_gt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | 
 # The [Unreleased] section's body, bounded by the next `## [` heading.
 unreleased_body() { awk '/^## \[Unreleased\]/{f=1; next} /^## \[/{f=0} f && NF' "$1"; }
 
-CORE_LATEST="$(last_tag_version claude-code-hermit)"
+CORE_LATEST="$(last_tag_version hermitd)"
 INITIAL="$(git rev-list --max-parents=0 HEAD | tail -1)"
 
 errors=()

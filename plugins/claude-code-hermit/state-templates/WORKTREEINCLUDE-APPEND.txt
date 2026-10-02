@@ -1,7 +1,0 @@
-# >>> claude-code-hermit (managed block — do not edit between markers) >>>
-.claude-code-hermit/OPERATOR.md
-.claude-code-hermit/config.json
-.claude-code-hermit/bin/hermit-run
-.claude-code-hermit/compiled/
-.claude/output-styles/hermit-voice.md
-# <<< claude-code-hermit <<<

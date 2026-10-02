@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermit watchdog — dead-session restart + wedge detection for {{NAME}}
+After=network.target
+
+[Service]
+Type=oneshot
+# Recovery children must outlive each watchdog tick; Hermit owns their shutdown.
+KillMode=process
+WorkingDirectory={{ROOT}}
+# Snapshot of the installer's PATH. A user unit does not inherit ~/.bun/bin, so
+# the shim's bare `bun` would exit 127 on every tick; claude and tmux must resolve
+# here too, or the restart path dies in hermitd-start's preflight.
+Environment="PATH={{UNIT_PATH}}"
+ExecStart={{ROOT}}/.hermit/bin/hermitd-watchdog run
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,48 @@
+---
+name: rc-gate
+description: Open, close, or check the Remote Control spawn gate — the hermit-managed `claude remote-control` server that lets a phone spawn new sessions into this project.
+disable-model-invocation: true
+---
+# RC Gate
+
+The spawn gate is a `claude remote-control` server the hermit runs as its own
+tmux child. While it is open, the operator can spawn **new** sessions into this
+project from claude.ai/code or the mobile app; each spawn lands in its own git
+worktree, so this folder stays single-session and the hermit keeps its own state.
+
+This is a different leg from `config.remote`, which makes *the hermit itself*
+reachable. Both can be on; neither implies the other.
+
+## Verbs
+
+All four are `.hermit/bin/hermitd-run rc-server <verb>`:
+
+| Verb | What it does | Output |
+|---|---|---|
+| `start` | opens the gate (tmux session `hermit-rc-gate`), waits for the server | `ready <url>` or a one-line refusal |
+| `status` | one pane read | `down`, `starting` (up but not serving yet), `ready`, or `connected N/32`; a second `spawns: N live (<names>)` line when spawn worktrees exist |
+| `stop` | closes the gate, then sweeps | `closed` / `down`, plus any removals |
+| `gc` | sweeps worktrees left by archived spawns | one line per worktree removed, or kept because it holds uncommitted work |
+
+`start` prints the `claude.ai/code?environment=…` URL — that is what the operator
+opens or scans. Hand it over as a link, not as a command.
+
+Run each verb bare. The grant for these four is an exact command match, so a
+pipe, a redirect, or a `timeout`/`cd` wrapper falls outside it and re-prompts.
+
+## Behavior
+
+Report state, not mechanics — whether the operator can spawn from their phone,
+and the link if so. Never the tmux session name, the flags, or the pane text.
+
+A spawned session is visible only to the claude.ai account signed in here, and
+the server refuses to start without that login. Anyone with access to that
+account can spawn while the gate is open.
+
+When `start` refuses with the not-logged-in verdict, that is final. Say it once,
+don't retry, don't propose workarounds.
+
+Leftover worktrees are swept automatically while the routine monitor runs. Run
+`gc` for an on-demand sweep that reports `kept`; `stop` already sweeps. A `kept`
+line means that worktree holds uncommitted work: say it is there and let the
+operator decide, never delete it for them.

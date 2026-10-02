@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/claude-code-homeassistant-hermit/**'
+      - 'plugins/hermitd-homeassistant/**'
       - '.github/workflows/test-ha.yml'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/claude-code-homeassistant-hermit/**'
+      - 'plugins/hermitd-homeassistant/**'
       - '.github/workflows/test-ha.yml'
       - 'package.json'
       - 'bun.lock'
@@ -47,4 +47,4 @@ jobs:
       # core suite's value. Local `bun test` stays on the 5s default so
       # genuine slowness still surfaces in dev.
       - run: bun test --parallel --timeout=45000
-        working-directory: plugins/claude-code-homeassistant-hermit
+        working-directory: plugins/hermitd-homeassistant

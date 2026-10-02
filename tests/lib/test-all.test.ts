@@ -8,8 +8,8 @@ function fixture() {
   for (const dir of ['scripts', 'bin', 'logs']) fs.mkdirSync(path.join(root, dir));
   fs.copyFileSync(path.resolve(import.meta.dir, '../../scripts/test-all.sh'), path.join(root, 'scripts/test-all.sh'));
   for (const slug of [
-    'claude-code-hermit', 'claude-code-homeassistant-hermit', 'feed-hermit',
-    'claude-code-dev-hermit', 'claude-code-fitness-hermit', 'hermit-scribe', 'laravel-forge-hermit',
+    'hermitd', 'hermitd-homeassistant', 'hermitd-feed',
+    'hermitd-dev', 'hermitd-fitness', 'hermitd-scribe', 'hermitd-laravel-forge',
   ]) {
     const dir = path.join(root, 'plugins', slug, 'tests');
     fs.mkdirSync(dir, { recursive: true });
@@ -25,7 +25,7 @@ if (process.argv[2] === '-e') {
   process.exit(0);
 }
 const slug = path.basename(process.cwd());
-if (slug === 'claude-code-hermit') {
+if (slug === 'hermitd') {
   fs.writeFileSync(path.join(root, 'core-args.json'), JSON.stringify(process.argv.slice(2)));
   fs.writeFileSync(path.join(root, 'core-started'), '');
   const deadline = Date.now() + 10000;
@@ -36,7 +36,7 @@ if (process.cwd() === root) {
   fs.writeFileSync(path.join(root, 'root-args.json'), JSON.stringify(process.argv.slice(2)));
   if (process.env.TEST_ROOT_FAIL) { console.error('root failure'); process.exit(3); }
 }
-if (slug === 'feed-hermit' && process.env.TEST_FEED_FAIL) {
+if (slug === 'hermitd-feed' && process.env.TEST_FEED_FAIL) {
   console.error('original failure detail');
   for (let i = 0; i < 30; i++) console.log('later output');
   process.exit(7);
@@ -71,10 +71,10 @@ test('reports a completed plugin while core is still running, then includes shar
   const r = run(root);
   try {
     const deadline = Date.now() + 5000;
-    while ((!fs.existsSync(path.join(root, 'core-started')) || !/feed-hermit\s+PASS/.test(r.stdout())) && Date.now() < deadline) {
+    while ((!fs.existsSync(path.join(root, 'core-started')) || !/hermitd-feed\s+PASS/.test(r.stdout())) && Date.now() < deadline) {
       await Bun.sleep(10);
     }
-    expect(r.stdout()).toMatch(/feed-hermit\s+PASS/);
+    expect(r.stdout()).toMatch(/hermitd-feed\s+PASS/);
     expect(r.proc.exitCode).toBeNull();
     fs.writeFileSync(path.join(root, 'release-core'), '');
     expect(await r.proc.exited).toBe(0);
@@ -96,10 +96,10 @@ test('a fast plugin failure and root failure remain failures and retain complete
   try {
     expect(await r.proc.exited).toBe(1);
     await r.output;
-    expect(r.stdout()).toMatch(/feed-hermit\s+FAIL/);
+    expect(r.stdout()).toMatch(/hermitd-feed\s+FAIL/);
     expect(r.stdout()).toMatch(/root\s+FAIL/);
     const logs = r.stdout().match(/Full test logs: (.+)/)![1];
-    expect(fs.readFileSync(path.join(logs, 'feed-hermit.log'), 'utf8')).toContain('original failure detail');
+    expect(fs.readFileSync(path.join(logs, 'hermitd-feed.log'), 'utf8')).toContain('original failure detail');
     expect(fs.readFileSync(path.join(logs, 'root.log'), 'utf8')).toContain('root failure');
   } finally {
     await Promise.all([r.proc.exited, r.output, r.stderr]);

@@ -1,0 +1,681 @@
+#!/usr/bin/env bash
+export PATH="/home/claude/.npm-global/bin:/home/claude/.bun/bin:${PATH}"
+set -euo pipefail
+
+PROJECT_DIR="$(pwd)"
+AGENT_DIR="${PROJECT_DIR}/.hermit"
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
+
+# --- Operator sidecar ---------------------------------------------------------
+# This file is hermit-managed: hermit-evolve replaces it whenever upstream moves,
+# so edits made here do not survive an upgrade. Put customizations in
+# <project-root>/docker-entrypoint.hermit-local.sh instead. It is SOURCED (not exec'd) at
+# two points below, with HERMIT_ENTRY_PHASE naming which one:
+#   pre-boot    channel dirs exist, env resolved, before plugins are installed —
+#               extra packages, env, mounts, anything the session needs at start
+#   pre-launch  immediately before hermitd-start — side services, last-second
+#               overrides
+# It inherits `set -euo pipefail`, so a failing command aborts the boot exactly
+# as an edit here would: guard anything optional with `|| true`. It lives on the
+# project bind mount, so edits apply on `hermitd-docker restart` — no rebuild.
+
+echo "[docker-entrypoint] Starting hermit container..."
+echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
+
+# Recover from interrupted claude self-update: the CLI atomically swaps the
+# /home/claude/.npm-global/bin/claude symlink by renaming it to .claude-<rand>
+# first, then writing the replacement. If the entrypoint died between those
+# two steps on a previous boot, the symlink is gone and only the orphan
+# remains. Detect and repair before any downstream `claude ...` invocation.
+CLAUDE_BIN="/home/claude/.npm-global/bin/claude"
+if [ ! -e "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; then
+  TEMP_LINK=$(ls /home/claude/.npm-global/bin/.claude-* 2>/dev/null | head -1 || true)
+  if [ -n "$TEMP_LINK" ]; then
+    mv "$TEMP_LINK" "$CLAUDE_BIN"
+    echo "[docker-entrypoint] Recovered claude symlink from interrupted self-update (was: $(basename "$TEMP_LINK"))"
+  else
+    echo "[docker-entrypoint] WARNING: claude binary missing and no temp symlink found — startup may fail"
+  fi
+fi
+
+# Sanity-check: if the recovered (or pre-existing) binary reports 0.0.0, the
+# orphan was non-functional. Reinstall from npm to self-heal so a `restart`
+# unwedges the container without needing `docker compose down && up -d`.
+# Two-step form (capture then default) avoids the empty-vs-"0.0.0" pitfall
+# under set -euo pipefail when head -1 exits 0 on empty input.
+_CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+_CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+  echo "[docker-entrypoint] claude binary is non-functional (version: 0.0.0) — reinstalling from npm..."
+  if npm install -g @anthropic-ai/claude-code; then
+    _CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+    _CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+    if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+      echo "[docker-entrypoint] ERROR: claude still reports 0.0.0 after reinstall."
+      echo "[docker-entrypoint] Recreate the container: hermitd stop && hermitd start"
+      exit 1
+    fi
+    echo "[docker-entrypoint] Reinstall succeeded (v${_CLAUDE_VER})."
+  else
+    echo "[docker-entrypoint] ERROR: npm install failed — cannot recover the claude binary."
+    echo "[docker-entrypoint] Recreate the container: hermitd stop && hermitd start"
+    exit 1
+  fi
+fi
+unset _CLAUDE_VER
+
+# --- 0. Wait for auth credentials ---
+# Three auth modes reach this gate:
+#   - setup-token: a long-lived token file on the named volume. hermitd-start
+#     exports it as CLAUDE_CODE_OAUTH_TOKEN, but that happens AFTER this
+#     entrypoint runs — so the FILE, not the env var, is the boot-time signal.
+#   - /login OAuth: .credentials.json on the named volume, written by
+#     `hermitd-docker login` and refreshed silently by the CLI.
+#   - API key: ANTHROPIC_API_KEY from .env.
+CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
+SETUP_TOKEN_FILE="${CLAUDE_CONFIG_DIR}/.hermit-setup-token"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] \
+   && [ ! -f "$SETUP_TOKEN_FILE" ] && [ ! -f "$CRED_FILE" ]; then
+  echo ""
+  echo "=============================================="
+  echo "  No auth credentials found."
+  echo "  From another terminal, run:"
+  echo ""
+  echo "    hermitd docker login"
+  echo ""
+  echo "  Do NOT attach to tmux and run claude while waiting"
+  echo "  — use hermitd-docker login only."
+  echo ""
+  echo "  Waiting for credentials. The container stays up until they arrive."
+  echo "=============================================="
+  echo ""
+  WAIT_SECS=0
+  while [ ! -f "$CRED_FILE" ] && [ ! -f "$SETUP_TOKEN_FILE" ]; do
+    sleep 5
+    WAIT_SECS=$((WAIT_SECS + 5))
+    # Never exit here. `restart: unless-stopped` would respawn us straight back
+    # into this wait, and `hermitd-docker login` execs into a *running* container,
+    # so exiting destroys the recovery path the banner above just pointed at.
+    # Stay up and keep polling; remind the operator every 10 minutes.
+    if [ "$WAIT_SECS" -ge 600 ] && [ $((WAIT_SECS % 600)) -eq 0 ]; then
+      echo "[docker-entrypoint] Still waiting for credentials (${WAIT_SECS}s elapsed)."
+      echo "[docker-entrypoint] Run 'hermitd-docker login' from another terminal."
+    fi
+  done
+  echo "[docker-entrypoint] Credentials detected! Continuing startup..."
+fi
+
+# --- 0c. Park a stale /login credential when a setup-token is present ---
+# Interactive Claude Code sessions authenticate with .credentials.json whenever
+# it holds a token, ahead of CLAUDE_CODE_OAUTH_TOKEN — the reverse of the
+# documented precedence (confirmed live on CC 2.1.218). A converted hermit that
+# keeps its old /login file therefore 401s the moment that stored access token
+# lapses (~8h), while the valid year-long token sits unused in the env.
+# hermitd-start's token install parks it too; this covers hermits converted before
+# that shipped, and any stray /login left behind on a token-mode hermit.
+# Renamed (not deleted) so a deliberate return to /login can restore it.
+#
+# Gated on the resolved auth mode, not on file presence alone: a hermit running
+# `auth_mode: login` may legitimately still have a stray token file on the volume,
+# and parking its live credential there would take it dark on the next boot. An
+# unset auth_mode resolves the same way it does everywhere else — token iff the
+# token file exists — so hermits that predate the key behave exactly as before.
+AUTH_MODE=$(bun -e "
+const fs = require('fs');
+let config = {};
+try { config = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); } catch {}
+const declared = config.auth_mode;
+if (declared === 'login' || declared === 'token') console.log(declared);
+else console.log(fs.existsSync(process.argv[2]) ? 'token' : 'login');
+" "${AGENT_DIR}/config.json" "$SETUP_TOKEN_FILE" 2>/dev/null || echo token)
+
+if [ "$AUTH_MODE" = "token" ] && [ -f "$SETUP_TOKEN_FILE" ] && [ -f "$CRED_FILE" ]; then
+  if mv -f "$CRED_FILE" "${CRED_FILE}.pre-token.bak" 2>/dev/null; then
+    echo "[docker-entrypoint] Parked stale .credentials.json (login token is authoritative; stored /login creds would shadow it in an interactive session)."
+  fi
+fi
+
+# --- 0d. Plugin install audit log helper ---
+# Gated on HERMIT_PLUGIN_INSTALL_AUDIT=1, which the security overlay
+# (/hermitd:docker-security toggle 4) sets when the audit-log
+# toggle is on. No-op when unset, so default flow is unchanged.
+#
+# Honestly named: this only catches installs performed by THIS entrypoint
+# script (boot-time installs of hermit-core, channels, and recommended
+# plugins). Post-boot installs the operator runs via tmux are NOT captured —
+# the audit-log toggle's docs in /docker-security explain this scope.
+if [ "${HERMIT_PLUGIN_INSTALL_AUDIT:-0}" = "1" ]; then
+  AUDIT_LOG="${AGENT_DIR}/state/plugin-installs.jsonl"
+  mkdir -p "$(dirname "$AUDIT_LOG")"
+  audit_install() {
+    # $1=marketplace, $2=plugin, $3=scope
+    printf '{"ts":"%s","marketplace":%s,"plugin":%s,"scope":%s}\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      "$(printf '%s' "$1" | jq -Rs .)" \
+      "$(printf '%s' "$2" | jq -Rs .)" \
+      "$(printf '%s' "$3" | jq -Rs .)" \
+      >> "$AUDIT_LOG"
+  }
+else
+  audit_install() { :; }
+fi
+
+# Enable a plugin, suppressing only the benign "already enabled" non-zero exit
+# (`claude plugin install --scope` auto-enables, so the self-heal enable usually
+# hits that). Any other failure is logged — visible in `docker compose logs` —
+# but non-fatal. `claude plugin list` shows disabled plugins too, so a presence
+# grep can't catch a failed enable; this warning is the actual signal.
+enable_plugin() {
+  local out
+  if out=$(claude plugin enable "$1" --scope "$2" 2>&1); then
+    return 0
+  fi
+  case "$out" in
+    *"already enabled"*) return 0 ;;
+    *) echo "[docker-entrypoint] Warning: failed to enable ${1} (scope ${2}): ${out}" ;;
+  esac
+}
+
+# --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
+CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
+INIT_OUTPUT=$(bun - "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR" <<'JSEOF'
+const fs = require("fs");
+const path = require("path");
+const [claudeJson, version, project] = process.argv.slice(2);
+
+// Fail loud: bun exits 0 on uncaught fs errors, which would silently yield an
+// empty INIT_OUTPUT. Exit 1 explicitly so set -e aborts the entrypoint instead.
+try {
+
+// --- .claude.json: onboarding + MCP approval ---
+let d = {};
+if (fs.existsSync(claudeJson)) d = JSON.parse(fs.readFileSync(claudeJson, "utf8"));
+let changed = false;
+
+if (!d.hasCompletedOnboarding || d.lastOnboardingVersion !== version) {
+  d.hasCompletedOnboarding = true;
+  d.lastOnboardingVersion = version;
+  changed = true;
+  console.error(`[docker-entrypoint] Onboarding bypass set for Claude Code v${version}`);
+}
+
+const configPath = path.join(project, ".hermit", "config.json");
+const configExists = fs.existsSync(configPath);
+let cfg = {};
+let channels = [];
+if (configExists) {
+  cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const channelsRaw = cfg.channels ?? {};
+  if (Array.isArray(channelsRaw)) {
+    channels = [...channelsRaw];
+  } else {
+    channels = Object.entries(channelsRaw)
+      .filter(([, entry]) => typeof entry !== "object" || entry === null || (entry.enabled ?? true))
+      .map(([name]) => name);
+  }
+}
+// The harness reads project .mcp.json approvals from settings files. The
+// entrypoint only seeds workspace trust; enrollment stays with the operator.
+const mcpJsonPath = path.join(project, ".mcp.json");
+let mcpJsonServers = [];
+if (fs.existsSync(mcpJsonPath)) {
+  try {
+    mcpJsonServers = Object.keys(JSON.parse(fs.readFileSync(mcpJsonPath, "utf8")).mcpServers ?? {});
+  } catch (e) {
+    console.error(`[docker-entrypoint] Warning: failed to parse .mcp.json: ${e}`);
+  }
+}
+
+if (mcpJsonServers.length > 0) {
+  console.error(`[docker-entrypoint] Project MCP servers left to native approval in .claude/settings.json: ${mcpJsonServers.join(", ")}`);
+}
+
+if (channels.length > 0 || mcpJsonServers.length > 0) {
+  const pluginIds = {
+    discord: "plugin:discord:discord",
+    telegram: "plugin:telegram:telegram",
+  };
+  d.projects = d.projects ?? {};
+  const proj = (d.projects[project] = d.projects[project] ?? {});
+  const enabled = proj.enabledMcpjsonServers ?? [];
+  const disabledJson = proj.disabledMcpjsonServers ?? [];
+  const disabledMcp = proj.disabledMcpServers ?? [];
+  // Only channel plugin ids are approved here: a channel is hermit
+  // infrastructure, and a disabled one takes the operator's own chat down. A
+  // project .mcp.json server is the operator's call, enrolled through the
+  // project's .claude/settings.json.
+  const approveIds = channels.map((ch) => pluginIds[ch]).filter(Boolean);
+  for (const pid of approveIds) {
+    if (!enabled.includes(pid)) {
+      enabled.push(pid);
+      changed = true;
+      console.error(`[docker-entrypoint] MCP server ${pid}: added to enabledMcpjsonServers`);
+    }
+    let i = disabledJson.indexOf(pid);
+    if (i !== -1) { disabledJson.splice(i, 1); changed = true; }
+    i = disabledMcp.indexOf(pid);
+    if (i !== -1) { disabledMcp.splice(i, 1); changed = true; }
+  }
+  proj.enabledMcpjsonServers = enabled;
+  proj.disabledMcpjsonServers = disabledJson;
+  proj.disabledMcpServers = disabledMcp;
+  // A versioned .mcp.json is only honoured in a trusted workspace, and the
+  // wizard already walks the operator through accepting trust for this dir.
+  if (mcpJsonServers.length > 0 && !proj.hasTrustDialogAccepted) {
+    proj.hasTrustDialogAccepted = true;
+    changed = true;
+    console.error(`[docker-entrypoint] hasTrustDialogAccepted set (required for .mcp.json workspace trust)`);
+  }
+}
+
+if (changed) fs.writeFileSync(claudeJson, JSON.stringify(d));
+
+// permission_mode is handled at launch by hermitd-start (--permission-mode flag, or
+// --dangerously-skip-permissions for the bypassPermissions opt-in).
+// Do NOT mutate config.json here — it lives on the host bind mount and would persist
+// container-only privilege escalation into the shared project config.
+
+// Emit channel list on stdout line 1, recommended plugins as JSON on line 2
+console.log(channels.filter((ch) => ch !== "imessage").join(" "));
+const rec = configExists ? (cfg.docker ?? {}).recommended_plugins ?? [] : [];
+console.log(JSON.stringify(rec.filter((e) => e.enabled)));
+
+} catch (e) {
+  console.error(`[docker-entrypoint] init block failed: ${e}`);
+  process.exit(1);
+}
+JSEOF
+)
+CHANNELS=$(echo "$INIT_OUTPUT" | sed -n '1p')
+RECOMMENDED_PLUGINS_JSON=$(echo "$INIT_OUTPUT" | sed -n '2p')
+
+# --- 2. Ensure channel state dirs exist (bind-mounted by docker-compose) ---
+# Channel state is bind-mounted from the project-local dir into ~/.claude/channels/
+# so that channel plugin writes stay inside the project tree (no permission prompts)
+# and persist across container restarts without sync logic.
+for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
+  local_dir="${!var_name:-}"
+  if [ -n "$local_dir" ]; then
+    mkdir -p "$local_dir"
+  fi
+done
+
+# --- 2b. Operator sidecar: pre-boot ---
+export HERMIT_ENTRY_PHASE=pre-boot
+if [ -f "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh" ]; then . "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh"; fi
+
+# --- 3. Install plugins (named volume starts empty on first run) ---
+# Registration is checked via `marketplace list --json` (reads known_marketplaces.json),
+# not by directory existence. A dir can exist while the marketplace is unregistered:
+# partial add, a bind-mount, or a prior install that cloned the dir but didn't write
+# the registration. Directory existence ≠ registered state.
+MARKETPLACE_DIR="${CLAUDE_CONFIG_DIR}/plugins/marketplaces"
+
+# Fetch registered marketplace names once; reused for all checks this boot.
+MARKETPLACE_LIST_JSON=$(claude plugin marketplace list --json 2>/dev/null || echo '[]')
+
+# Returns 0 if the marketplace whose canonical name matches $1 is already registered.
+marketplace_registered() {
+  echo "$MARKETPLACE_LIST_JSON" \
+    | jq -e --arg n "$1" 'any(.[]?; .name == $n)' >/dev/null 2>&1
+}
+
+# Hermit marketplace + plugin (checks are independent so a prior install failure self-heals)
+if ! marketplace_registered hermitd; then
+  echo "[docker-entrypoint] Adding hermit marketplace..."
+  if ! claude plugin marketplace add gtapps/hermitd; then
+    echo "[docker-entrypoint] ERROR: failed to add hermit marketplace — plugin install will fail."
+  fi
+fi
+if ! claude plugin list 2>/dev/null | grep -qF 'hermitd@hermitd'; then
+  echo "[docker-entrypoint] Installing hermit plugin..."
+  if claude plugin install hermitd@hermitd --scope project; then
+    audit_install "gtapps/hermitd" "hermitd" "project"
+  else
+    echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
+  fi
+fi
+
+# Idempotent enable — runs every boot to self-heal if plugin was disabled.
+enable_plugin hermitd@hermitd project
+
+# Official marketplace (needed by channel plugins)
+NEEDS_OFFICIAL=false
+[ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
+if [ "$NEEDS_OFFICIAL" = true ] && ! marketplace_registered claude-plugins-official; then
+  echo "[docker-entrypoint] Adding official plugins marketplace..."
+  if ! claude plugin marketplace add anthropics/claude-plugins-official; then
+    echo "[docker-entrypoint] ERROR: failed to add claude-plugins-official marketplace."
+    echo "[docker-entrypoint]        Channel and recommended plugins will NOT be installed."
+    echo "[docker-entrypoint]        Fix: shell into the container and run the command manually:"
+    echo "[docker-entrypoint]          hermitd docker bash"
+    echo "[docker-entrypoint]          claude plugin marketplace add anthropics/claude-plugins-official"
+    NEEDS_OFFICIAL=false
+  fi
+fi
+
+# Snapshot installed plugins once — used by the recommended-plugin scheduled check below.
+# stderr is kept visible so CLI errors surface in `docker compose logs`.
+INSTALLED_PLUGINS=$(claude plugin list || echo "")
+
+# Channel plugins
+# Installed at --scope local so the entry lives in the named config volume and
+# does not leak into the project's .claude/settings.json via the bind mount.
+# stderr is NOT suppressed — install/enable failures must be visible.
+if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
+  for plugin in $CHANNELS; do
+    target="${plugin}@claude-plugins-official"
+    if echo "$INSTALLED_PLUGINS" | grep -qF "$target"; then
+      # Idempotent re-enable covers the "listed but disabled" case.
+      enable_plugin "$target" local
+      continue
+    fi
+    echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
+    if ! claude plugin install "$target" --scope local; then
+      echo "[docker-entrypoint] ERROR: 'claude plugin install ${target}' failed — see stderr above."
+      continue
+    fi
+    audit_install "claude-plugins-official" "$plugin" "local"
+    # Self-heal enable; warns only on a genuine failure (see enable_plugin).
+    enable_plugin "$target" local
+    # Post-install verification — re-query list and confirm the entry landed.
+    # Catches the "CLI exits 0 but nothing was fetched" silent-failure mode.
+    if ! claude plugin list | grep -qF "$target"; then
+      echo "[docker-entrypoint] ERROR: ${target} not present in 'claude plugin list' after install."
+      echo "[docker-entrypoint]        Current plugin list:"
+      claude plugin list | sed 's/^/[docker-entrypoint]          /' || true
+      echo "[docker-entrypoint]        Fix: shell in and reinstall manually:"
+      echo "[docker-entrypoint]          hermitd docker bash"
+      echo "[docker-entrypoint]          claude plugin install ${target} --scope local"
+    fi
+  done
+fi
+
+# Recommended plugins (enabled entries extracted from config.json above)
+# Mirrors the host-installed plugin set confirmed during docker-setup
+# (project + local scope, both pinned to the host project's projectPath; user-scope is intentionally not mirrored).
+# Each entry may reference any marketplace — the entrypoint adds it on first boot as needed.
+# Operator confirmed these plugins during docker-setup, so no auto-install guard is needed.
+if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+  AUDIT_LOG_PATH=""
+  if [ "${HERMIT_PLUGIN_INSTALL_AUDIT:-0}" = "1" ]; then
+    AUDIT_LOG_PATH="${AGENT_DIR}/state/plugin-installs.jsonl"
+  fi
+  bun - "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$AUDIT_LOG_PATH" <<'JSEOF' || echo "[docker-entrypoint] Warning: recommended plugin install block encountered errors, continuing"
+const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+// "claude plugin list" output is free-form: each plugin appears as "  ❯ plugin@slug".
+// Matching on "❯ {target}" pins the check to the entry line, preventing false positives
+// where a short target (e.g. "hermit@foo") is a substring of a longer entry.
+const [pluginsJson, installedBlob, auditLogPath = ""] = process.argv.slice(2);
+const plugins = JSON.parse(pluginsJson);
+
+// stdin is the heredoc (already consumed as program source) — children must not
+// inherit it, so every claude CLI call runs with stdin ignored.
+const INHERIT = { stdio: ["ignore", "inherit", "inherit"] };
+
+function audit(marketplace, plugin, scope) {
+  if (!auditLogPath) return;
+  try {
+    fs.mkdirSync(path.dirname(auditLogPath), { recursive: true });
+    fs.appendFileSync(auditLogPath, JSON.stringify({
+      ts: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      marketplace,
+      plugin,
+      scope,
+    }) + "\n");
+  } catch (e) {
+    console.log(`[docker-entrypoint] Warning: audit log write failed: ${e}`);
+  }
+}
+
+// Resolve marketplace canonical names from the CLI's source of truth. We need the
+// 'name' field to build install targets (<plugin>@<name>) and check the on-disk
+// cache dir (which is keyed by name). Storing both name and org/repo in config
+// would just duplicate this lookup; one subprocess call here is cheaper than a
+// permanent schema bifurcation.
+function fetchMarketplaceNames() {
+  const result = spawnSync("claude", ["plugin", "marketplace", "list", "--json"],
+    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+  if (result.error || result.status !== 0) return {};
+  try {
+    const names = {};
+    for (const m of JSON.parse(result.stdout)) {
+      if (m.repo) names[m.repo] = m.name;
+    }
+    return names;
+  } catch {
+    return {};
+  }
+}
+
+let nameByRepo = fetchMarketplaceNames();
+
+for (const entry of plugins) {
+  const plugin = entry.plugin;
+  const marketplace = entry.marketplace ?? "anthropics/claude-plugins-official";
+  const scope = entry.scope ?? "project";
+
+  // Schema check: marketplace must be org/repo. Pre-v1.0.34 entries that stored
+  // the literal name (e.g. 'claude-plugins-official' instead of
+  // 'anthropics/claude-plugins-official') hit this path. One warning, skip,
+  // then the operator repairs the entry in config.json from the host.
+  if (!marketplace.includes("/")) {
+    console.log(`[docker-entrypoint] Warning: ${plugin} entry has outdated marketplace "${marketplace}" (expected org/repo). Operator action from a host shell: update docker.recommended_plugins in .hermit/config.json, then run hermitd-docker restart.`);
+    continue;
+  }
+
+  let marketplaceName = nameByRepo[marketplace];
+  if (!marketplaceName) {
+    // Marketplace not yet registered in this container — add it, then re-fetch.
+    console.log(`[docker-entrypoint] Adding marketplace: ${marketplace}`);
+    const result = spawnSync("claude", ["plugin", "marketplace", "add", marketplace], INHERIT);
+    if (result.error) {
+      console.log(`[docker-entrypoint] Warning: claude not found adding marketplace ${marketplace} — skipping ${plugin}`);
+      continue;
+    }
+    if (result.status !== 0) {
+      console.log(`[docker-entrypoint] Warning: failed to add marketplace ${marketplace} — skipping ${plugin}`);
+      continue;
+    }
+    nameByRepo = fetchMarketplaceNames();
+    marketplaceName = nameByRepo[marketplace];
+    if (!marketplaceName) {
+      console.log(`[docker-entrypoint] Warning: marketplace ${marketplace} added but name not resolvable — skipping ${plugin}`);
+      continue;
+    }
+  }
+
+  const installTarget = `${plugin}@${marketplaceName}`;
+  if (installedBlob.includes(`❯ ${installTarget}`)) continue;
+  console.log(`[docker-entrypoint] Installing recommended plugin: ${plugin}`);
+  let result = spawnSync("claude", ["plugin", "install", installTarget, "--scope", scope], INHERIT);
+  if (result.error) {
+    console.log(`[docker-entrypoint] Warning: claude not found installing ${plugin} — may have self-updated; will retry on next restart`);
+    continue;
+  }
+  if (result.status !== 0) {
+    console.log(`[docker-entrypoint] Warning: failed to install ${plugin} — install manually`);
+    continue;
+  }
+  audit(marketplace, plugin, scope);
+  // Self-heal enable — mirrors shell enable_plugin(): suppress the benign "already enabled"
+  // exit, warn on a genuine failure. Output captured (stdin still ignored) to match the message.
+  result = spawnSync("claude", ["plugin", "enable", installTarget, "--scope", scope],
+    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+  if (result.error) {
+    console.log(`[docker-entrypoint] Warning: claude not found enabling ${plugin} — plugin installed but enable skipped; will self-heal on next restart`);
+  } else if (result.status !== 0) {
+    const enableOut = (result.stdout ?? "") + (result.stderr ?? "");
+    if (!enableOut.includes("already enabled")) {
+      console.log(`[docker-entrypoint] Warning: failed to enable ${plugin} — run: claude plugin enable ${installTarget}`);
+    }
+  }
+}
+JSEOF
+fi
+
+# --- Plugin updates are NOT run on boot ---
+# Auto-updates would pull unreviewed code that runs with the configured permission_mode.
+# Update explicitly: /hermitd:hermit-evolve or rebuild the image.
+
+# Export plugin root so hermitd-run can skip the directory scan.
+# Monorepo layout: <marketplace>/plugins/hermitd/ is the plugin root.
+HERMIT_PLUGIN_ROOT_CANDIDATE="${MARKETPLACE_DIR}/hermitd/plugins/hermitd"
+if [ -f "${HERMIT_PLUGIN_ROOT_CANDIDATE}/.claude-plugin/plugin.json" ]; then
+  export HERMIT_PLUGIN_ROOT="${HERMIT_PLUGIN_ROOT_CANDIDATE}"
+  echo "[docker-entrypoint] Plugin root: ${HERMIT_PLUGIN_ROOT}"
+fi
+
+# --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
+MEMORY_SEED="${AGENT_DIR}/MEMORY-SEED.md"
+if [ -f "$MEMORY_SEED" ]; then
+  # CC's own path key: every non-alphanumeric character becomes '-', dots
+  # included (scripts/lib/cc-compat.ts transcriptPathKey). A slash-only
+  # substitution mis-seeds any dotted project path. LC_ALL is pinned because
+  # the image sets no locale: under the default C locale sed matches per byte,
+  # so an accented path segment would yield one '-' per UTF-8 byte where CC's
+  # JS replace yields one per character — the same mis-seed, one class over.
+  PATH_KEY="$(printf '%s' "$PROJECT_DIR" | LC_ALL=C.UTF-8 sed 's/[^A-Za-z0-9]/-/g')"
+  MEMORY_DIR="${CLAUDE_CONFIG_DIR}/projects/${PATH_KEY}/memory"
+  if [ ! -f "${MEMORY_DIR}/MEMORY.md" ]; then
+    mkdir -p "$MEMORY_DIR" && \
+      cp "$MEMORY_SEED" "${MEMORY_DIR}/MEMORY.md" && \
+      echo "[docker-entrypoint] Seeded auto-memory from host (one-time)" || \
+      echo "[docker-entrypoint] Warning: failed to seed auto-memory — continuing"
+  fi
+fi
+
+# --- 4b. Singleton guard: refuse to boot over a live non-docker owner ---
+# hermitd-start's own guard self-skips inside a container, so the container-side
+# check lives here. A gone-tmux host instance that survived as an orphan keeps
+# writing the shared (bind-mounted) liveness files; if runtime.json still claims
+# a non-docker mode AND any liveness file is fresh, a live host instance owns
+# this project's state — booting a second claude beside it recreates the
+# split-brain incident. Go inert (no claude, container flips unhealthy via the
+# tmux healthcheck) rather than exit, so `restart: unless-stopped` can't loop us.
+# HERMIT_FORCE_BOOT=1 overrides, for split-state recovery.
+if [ "${HERMIT_FORCE_BOOT:-0}" != "1" ]; then
+  _rt="${AGENT_DIR}/state/runtime.json"
+  _mode="$(jq -r '.runtime_mode // empty' "$_rt" 2>/dev/null || true)"
+  if [ -n "$_mode" ] && [ "$_mode" != "docker" ]; then
+    # A cleanly-stopped owner is definitively dead; its frozen runtime_mode and
+    # not-yet-aged liveness files don't prove life. Mirrors shouldRefuseBoot.
+    _done="$(jq -r '.shutdown_completed_at // empty' "$_rt" 2>/dev/null || true)"
+    _fresh=0
+    if [ -z "$_done" ]; then
+      for _f in state/routine-monitor-liveness.json state/heartbeat-liveness.json state/.heartbeat; do
+        if [ -n "$(find "${AGENT_DIR}/$_f" -mmin -10 2>/dev/null || true)" ]; then _fresh=1; break; fi
+      done
+    fi
+    if [ "$_fresh" = "1" ]; then
+      echo "[docker-entrypoint] BOOT CONFLICT: a live '$_mode' instance owns this project's state dir."
+      echo "[docker-entrypoint] Staying inert (no claude started). Stop the other instance, then: hermitd-docker restart"
+      printf 'live %s owner detected at boot\n' "$_mode" > "${AGENT_DIR}/state/.boot-conflict"
+      # Bash defers a trapped signal until a foreground command returns, and PID 1
+      # has no default signal action. docker stop/compose down do not re-trigger
+      # restart: unless-stopped, so make the sleep interruptible through wait.
+      trap 'echo "[docker-entrypoint] Stop requested while inert — exiting."; exit 0' SIGTERM SIGINT
+      while true; do sleep 300 & wait $! || true; done
+    fi
+  fi
+fi
+rm -f "${AGENT_DIR}/state/.boot-conflict" 2>/dev/null || true
+
+# Keep Claude Code on the configured inbox socket directory. It rejects
+# group- or world-writable directories and otherwise silently falls back to /tmp.
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+  if ! mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null || ! chmod 0700 "$XDG_RUNTIME_DIR" 2>/dev/null; then
+    printf '[hermit] Cannot secure socket directory %s; fix with: docker volume rm hermit-fleet-socks, then hermitd-docker up\n' "$XDG_RUNTIME_DIR" >&2
+  fi
+fi
+
+# --- 4c. Operator sidecar: pre-launch ---
+export HERMIT_ENTRY_PHASE=pre-launch
+if [ -f "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh" ]; then . "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh"; fi
+
+# --- 5. Launch hermitd-start ---
+# HERMIT_RESUME is baked into the container's environment when `hermitd-docker
+# up|restart --resume` creates it, so `restart: unless-stopped` would replay the
+# opt-in on every daemon restart and host reboot — resuming without the size gate
+# the watchdog applies, and with no way for the operator to see which mode a
+# running container is in. Consume it once per container: the marker lives in the
+# writable layer, so a restart of this container sees it and a recreate (any
+# `hermitd-docker up`/`restart`, with or without --resume) does not.
+HERMIT_RESUME_MARKER=/tmp/.hermit-resume-consumed
+if [ "${HERMIT_RESUME:-0}" = "1" ] && [ ! -f "$HERMIT_RESUME_MARKER" ]; then
+  : > "$HERMIT_RESUME_MARKER"
+  set -- --resume "$@"
+fi
+"${AGENT_DIR}/bin/hermitd-start" "$@"
+
+# --- 6. Keep PID 1 alive, handle graceful shutdown ---
+# Resolve the tmux session name from config at runtime (same logic as
+# lib/tmux.getSessionName). Resolving here instead of baking a static placeholder
+# keeps a raw `cp` of this template safe. The fallback mirrors the bun default
+# (hermit-{project_name}) so a bun failure still lands on the real session name
+# rather than a bare "hermit" that would never match and reboot-loop the container.
+SESSION_NAME=$(bun -e "
+const config = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+const name = String(config.tmux_session_name ?? 'hermit-{project_name}');
+console.log(name.replaceAll('{project_name}', require('path').basename(process.argv[2])));
+" "${AGENT_DIR}/config.json" "$PROJECT_DIR" 2>/dev/null || echo "hermit-$(basename "$PROJECT_DIR")")
+
+# SIGTERM waits for the configured shutdown skill and current execution to settle.
+cleanup() {
+  echo "[docker-entrypoint] SIGTERM received..."
+  SHUTDOWN_SKILL=$(jq -r '.shutdown_skill // empty' "${AGENT_DIR}/config.json")
+  SENT_AT=""
+  for i in $(seq 1 30); do
+    if bun -e '
+      try {
+        const execution = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+        process.exit(typeof execution.state === "string" && execution.state !== "in_flight"
+          && (!process.argv[2] || Date.parse(execution.at) > Number(process.argv[2])) ? 0 : 1);
+      } catch { process.exit(1); }
+    ' "${AGENT_DIR}/state/execution.json" "$SENT_AT"; then
+      if [ -z "$SHUTDOWN_SKILL" ] || [ -n "$SENT_AT" ]; then
+        break
+      fi
+      # Typed only once no turn is running: typed mid-turn, that turn's own end
+      # would satisfy this wait before the skill ran.
+      SENT_AT=$(bun -e 'console.log(Date.now())')
+      # Submit text and Enter separately so the TUI does not treat Enter as paste.
+      tmux send-keys -t "$SESSION_NAME:0.0" "$SHUTDOWN_SKILL" 2>/dev/null || true
+      sleep 0.5
+      tmux send-keys -t "$SESSION_NAME:0.0" Enter 2>/dev/null || true
+    fi
+    sleep 1
+  done
+  # Mark the stop as clean so the next boot does not report a crash.
+  bun -e '
+    const fs = require("fs");
+    try {
+      const runtime = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      runtime.shutdown_completed_at = new Date().toISOString();
+      fs.writeFileSync(process.argv[1] + ".tmp", JSON.stringify(runtime, null, 2) + "\n");
+      fs.renameSync(process.argv[1] + ".tmp", process.argv[1]);
+    } catch {}
+  ' "${AGENT_DIR}/state/runtime.json" 2>/dev/null || true
+  echo "[docker-entrypoint] Shutting down."
+  exit 0
+}
+trap cleanup SIGTERM SIGINT
+
+echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
+_wd_cycle=0
+while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do
+  sleep 30 &
+  wait $! || true
+  _wd_cycle=$(( _wd_cycle + 1 ))
+  # Run watchdog every ~5 min (10 × 30s). No-op when watchdog.enabled is false.
+  # In Docker, dead-session recovery happens via the container restart policy (this
+  # while-loop exits when tmux dies); the watchdog here mainly adds wedge detection + re-arm.
+  if [ $(( _wd_cycle % 10 )) -eq 0 ] && [ -x ".hermit/bin/hermitd-watchdog" ]; then
+    .hermit/bin/hermitd-watchdog run 2>>".hermit/state/watchdog.log" || true
+  fi
+done
+echo "[docker-entrypoint] tmux session ended — container exiting"

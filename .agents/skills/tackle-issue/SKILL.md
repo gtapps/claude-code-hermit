@@ -37,7 +37,7 @@ load-bearing.
 ## Dispatch
 
 - **Issue number** ("tackle issue 99", "#42", "owner/repo#N"):
-  `gh issue view <N> --repo <owner/repo from input, default gtapps/claude-code-hermit> --json title,body,labels,comments,author,state,url`
+  `gh issue view <N> --repo <owner/repo from input, default gtapps/hermitd> --json title,body,labels,comments,author,state,url`
   Read the comments: they often say "already fixed" or change scope, and they override the body.
   Pull referenced issues/PRs when the body leans on them. Closed issue → surface that and ask
   before continuing. Also run `gh pr list --repo <repo> --state open --search "<N>"`: an open PR
@@ -51,19 +51,19 @@ load-bearing.
   plan sections on positive verdicts, then stop. No branch, no tasks.
 
 **PROP-NNN references**: for issues in this repo, read the matching
-`.claude-code-hermit/proposals/PROP-NNN-*` file and fold its `## Problem` /
+`.hermit/proposals/PROP-NNN-*` file and fold its `## Problem` /
 `## Proposed Solution` into the evidence. Never dereference PROP ids from other repos
 (numbering is per-repo).
 
-**Handoff applies only to gtapps/claude-code-hermit issues.** Cross-repo issues get the triage
+**Handoff applies only to gtapps/hermitd issues.** Cross-repo issues get the triage
 report only.
 
 ## Picker
 
-1. `gh issue list --repo gtapps/claude-code-hermit --label ready --state open --json number,title,labels,updatedAt --limit 30`.
+1. `gh issue list --repo gtapps/hermitd --label ready --state open --json number,title,labels,updatedAt --limit 30`.
    Zero results → "No ready-labelled open issues; label issues `ready` to opt in." Stop.
 2. Drop issues referenced by open PRs:
-   `gh pr list --repo gtapps/claude-code-hermit --state open --json number,body,headRefName --limit 100`,
+   `gh pr list --repo gtapps/hermitd --state open --json number,body,headRefName --limit 100`,
    matching `#N` in bodies and `(feat|fix|chore)/N-` in head branch names.
 3. Drop issues with a `skip` event in the last 7 days or a `defer` event in the last 24h in
    `.claude/state/tackle-issue-log.jsonl` (read at most the last 100 lines; missing file = no
@@ -151,7 +151,7 @@ risk). If you can't name one, don't pad the section.
 ## Handoff
 
 Runs only when: recommendation is SHIP or SHIP WITH CAVEAT, input was a
-gtapps/claude-code-hermit issue number, and `--investigate-only` was not passed.
+gtapps/hermitd issue number, and `--investigate-only` was not passed.
 
 **Guardrails**: dirty tree (any branch) → stop, point at `/commit`. Mid-rebase, mid-merge, or
 detached HEAD → stop. On a feature branch with commits ahead of base → AskUserQuestion: continue
@@ -194,7 +194,7 @@ Report "On branch <branch>, ready to implement" and stop. No code edits, no comm
 
 - Call ExitPlanMode.
 - Commit, push, open PRs, comment on issues, change labels, or close issues.
-- Write to `.claude-code-hermit/` (hermit-runtime state, not workflow state).
+- Write to `.hermit/` (hermit-runtime state, not workflow state).
 - Pick more than one issue per invocation.
 - Verify by paraphrasing the issue: evidence lines describe what the code showed, not what the
   issue said.

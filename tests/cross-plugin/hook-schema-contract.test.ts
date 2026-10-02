@@ -4,17 +4,17 @@
 // `unknown keys "…" ignored` at every session start for anything outside it.
 // Documenting a hook inline — a `description` or `profile` sitting next to
 // `matcher` — is the tempting way to earn that warning, and it earned one on
-// every hermit install until this guard existed. The keys below are the
+// every hermitd install until this guard existed. The keys below are the
 // documented schema: https://code.claude.com/docs/en/hooks, /plugins-reference
 //
 // Two emission sites, one schema: every plugin's hooks/hooks.json, and the
-// per-boot launch overlay that hermit-start writes to its --settings file.
+// per-boot launch overlay that hermitd-start writes to its --settings file.
 // A fix that covers only the first leaves always-on hermits still warning.
 //
 // Lives at the repo root (outside every plugin's `bun test` / run-all.sh
 // discovery) so it never blocks a plugin release; the path-scoped
 // test-cross-plugin.yml workflow already runs it on `plugins/*/hooks/**` and
-// `plugins/claude-code-hermit/scripts/**`, which is every path that can break
+// `plugins/hermitd/scripts/**`, which is every path that can break
 // it. Core's own suite is not wired to `plugins/*/hooks/**`, so a sibling-only
 // hooks.json edit would not have triggered this guard there.
 
@@ -76,9 +76,9 @@ test('every fleet hooks.json and the launch overlay use only schema keys', async
   }
 
   const { overlayHooks } = await import(
-    path.join(ROOT, 'plugins', 'claude-code-hermit', 'scripts', 'lib', 'settings', 'overlay-hooks.ts')
+    path.join(ROOT, 'plugins', 'hermitd', 'scripts', 'lib', 'settings', 'overlay-hooks.ts')
   );
-  problems.push(...checkEventMap(overlayHooks(path.join(ROOT, 'plugins', 'claude-code-hermit')), 'launch overlay'));
+  problems.push(...checkEventMap(overlayHooks(path.join(ROOT, 'plugins', 'hermitd')), 'launch overlay'));
 
   expect(problems).toEqual([]);
   // Path-resolution guard: zero files means the scan is broken, not that all is well.

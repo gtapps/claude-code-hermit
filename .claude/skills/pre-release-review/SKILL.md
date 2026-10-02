@@ -19,7 +19,7 @@ This is a **read-only audit** for its own steps — it never bumps a version, wr
 `/pre-release-review [<plugin-slug>...] [<objective>]`
 
 - **No slug** — sweep every plugin under `plugins/*/` that has commits since its own last tag. This is the default and the common case.
-- **One or more slugs** — narrow to those plugins (e.g. `/pre-release-review claude-code-hermit hermit-scribe`).
+- **One or more slugs** — narrow to those plugins (e.g. `/pre-release-review hermitd hermit-scribe`).
 - **Objective** — any trailing free text. It settles the Step 0 mode when it clearly names one ("design review", "run the deep pass too") and otherwise becomes the lens the verdict answers.
 
 Optional precursor: `/release-status` prints the pipeline table (versions, tags, commits-ahead, core-req staleness). This skill does the deep per-plugin diff + changelog audit that the table only summarizes. Run `/release-status` first if you want the one-line overview before committing to the heavier pass.
@@ -36,7 +36,7 @@ A free-text objective on any option does two things: the Verdict answers it ("re
 
 ## Step 1 — Establish per-plugin release boundaries
 
-There is no single "release boundary" in this repo: every plugin versions and tags independently (`<slug>--vX.Y.Z`, double-dash, including core as `claude-code-hermit--v*`). The single most-recent reachable tag would give the *smallest* window and silently miss unreleased work in a plugin that hasn't tagged in a while. So compute the boundary **per plugin** — this is the same logic as `/release-status` Step 1.
+There is no single "release boundary" in this repo: every plugin versions and tags independently (`<slug>--vX.Y.Z`, double-dash, including core as `hermitd--v*`). The single most-recent reachable tag would give the *smallest* window and silently miss unreleased work in a plugin that hasn't tagged in a while. So compute the boundary **per plugin** — this is the same logic as `/release-status` Step 1.
 
 Glob `plugins/*/.claude-plugin/plugin.json`. For each slug (or just the one passed as arg):
 
@@ -128,7 +128,7 @@ Runs after Step 3 on the same windows. The audit checks that the changelog tells
 git log --merges --format='%h %s' "$base"..HEAD -- plugins/<slug>/       # "Merge pull request #NNN"
 gh pr view <NNN> --json title,body,headRefName,closingIssuesReferences
 gh issue view <issue> --json title,body                                    # also the <N> in feat/<N>-<slug>
-grep -l -e '#<issue>' -e '<branch-slug>' .claude-code-hermit/proposals/PROP-*.md
+grep -l -e '#<issue>' -e '<branch-slug>' .hermit/proposals/PROP-*.md
 ```
 
 The proposal match is loose (frontmatter has no issue field); "no proposal" is a valid answer, never guess one. Commits that landed without a PR are reviewed from their commit messages. PROP ids may appear in this report (terminal-only) but never travel into a follow-up PR, commit, or CHANGELOG.
@@ -180,8 +180,8 @@ Emit one report in this shape:
 ## Release boundaries
 | Plugin | Base tag | Base | HEAD | Commits |
 |--------|----------|------|------|---------|
-| hermit-scribe        | hermit-scribe--v0.0.6 | a1b2c3d | e4f5a6b | 4 |
-| laravel-forge-hermit | laravel-forge-hermit--v0.0.5 | ... | ... | 2 |
+| hermit-scribe        | hermitd-scribe--v0.0.6 | a1b2c3d | e4f5a6b | 4 |
+| hermitd-laravel-forge | hermitd-laravel-forge--v0.0.5 | ... | ... | 2 |
 (plugins with 0 commits or unstructured tags: listed as skipped)
 
 ## Changelog-vs-reality audit

@@ -11,7 +11,7 @@ TARGET=$1
 shift
 
 ROOT="$(git rev-parse --show-toplevel)"
-export HERMIT_PLUGIN_ROOT="$ROOT/plugins/claude-code-hermit"
+export HERMIT_PLUGIN_ROOT="$ROOT/plugins/hermitd"
 
 cd "$TARGET"
 exec claude --plugin-dir "$ROOT/plugins" "$@"

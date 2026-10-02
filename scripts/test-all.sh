@@ -7,8 +7,8 @@ LOGDIR="$(mktemp -d)"
 overall_rc=0
 trap 'if [ "$overall_rc" -eq 0 ]; then rm -rf "$LOGDIR"; else printf "Full test logs: %s\n" "$LOGDIR"; fi' EXIT
 
-BUN_TEST_SLUGS=(claude-code-hermit claude-code-homeassistant-hermit feed-hermit)
-RUN_ALL_SLUGS=(claude-code-dev-hermit claude-code-fitness-hermit hermit-scribe laravel-forge-hermit)
+BUN_TEST_SLUGS=(hermitd hermitd-homeassistant hermitd-feed)
+RUN_ALL_SLUGS=(hermitd-dev hermitd-fitness hermitd-scribe hermitd-laravel-forge)
 
 # Bun 1.4 isolates files in worker processes. Cap core at two workers to keep
 # local runs responsive: other plugin suites also run here, and each core file
@@ -37,7 +37,7 @@ run_suite() {
 run_bun() {
   local slug="$1"
   shift
-  ( cd "$ROOT/plugins/$slug" && bun test "$@" )
+  ( cd "$ROOT/plugins/$slug" && CLAUDE_PLUGIN_ROOT="$ROOT/plugins/$slug" bun test "$@" )
 }
 
 run_root() {
@@ -46,7 +46,7 @@ run_root() {
 
 printf "%-32s %-6s %6s\n" "PLUGIN" "RESULT" "SECS"
 for slug in "${BUN_TEST_SLUGS[@]}"; do
-  if [ "$slug" = claude-code-hermit ]; then
+  if [ "$slug" = hermitd ]; then
     run_suite "$slug" run_bun "$slug" --parallel="$CORE_WORKERS" &
   else
     run_suite "$slug" run_bun "$slug" &

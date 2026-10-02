@@ -1,6 +1,0 @@
-# Hermit watchdog — cron fallback (use systemd or launchd when available)
-# Add this line with: crontab -e
-# Replace /path/to/project with your actual project root.
-#
-# Runs every 5 minutes; exit 0 always (won't generate cron mail on skip).
-*/5 * * * * cd /path/to/project && .claude-code-hermit/bin/hermit-watchdog run 2>>.claude-code-hermit/state/watchdog.log

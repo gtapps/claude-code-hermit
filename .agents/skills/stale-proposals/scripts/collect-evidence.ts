@@ -29,7 +29,7 @@ function arg(flag: string, fallback: string): string {
 }
 
 const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
-const hermitDir = arg('--hermit-dir', join(repoRoot, '.claude-code-hermit'));
+const hermitDir = arg('--hermit-dir', join(repoRoot, '.hermit'));
 const outPath = arg(
   '--out',
   join(tmpdir(), `stale-proposals-evidence-${process.pid}.md`),

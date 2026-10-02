@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Start a persistent hermit session in tmux.
+# Run from project root: .hermit/bin/hermitd-start
+exec "$(dirname "$0")/hermitd-run" hermitd-start "$@"

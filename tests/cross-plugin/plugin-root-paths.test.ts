@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { walkFiles } from '../../plugins/claude-code-hermit/tests/helpers/run';
+import { walkFiles } from '../../plugins/hermitd/tests/helpers/run';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..');
 const PLUGINS = path.join(REPO_ROOT, 'plugins');
-const RUNTIME_DOCS = ['claude-code-hermit/docs/artifacts.md'];
+const RUNTIME_DOCS = ['hermitd/docs/artifacts.md'];
 const TEACHING = 'Runnable plugin paths go only in SKILL.md or agent bodies as ${CLAUDE_PLUGIN_ROOT} (skills: Available string substitutions; plugins-reference: Where each variable resolves); other files refer to a command by name; the unbraced form is never substituted.';
 type ReadKind = 'commands' | 'prose-only';
 const CROSS_READERS: Record<string, Record<string, ReadKind>> = {
-  'claude-code-hermit': {
+  'hermitd': {
     'hermit-settings -> channel-setup/references/group-enrollment.md': 'commands',
     'docker-setup -> channel-setup/references/group-enrollment.md': 'commands',
     'proposal-act -> watch/session-watch.md': 'commands',
@@ -82,7 +82,7 @@ for (const plugin of fs.readdirSync(PLUGINS)) {
         const names = [...read(file).matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)*)` \(Commands\)/g)].map((match) => match[1]);
         const readers = new Set<string>();
         // Only evolve-runner reads hermit-evolve/reference.md; the skill just dispatches it.
-        if (plugin === 'claude-code-hermit' && path.relative(skills, file) === 'hermit-evolve/reference.md') readers.add(path.join(root, 'agents/evolve-runner.md'));
+        if (plugin === 'hermitd' && path.relative(skills, file) === 'hermit-evolve/reference.md') readers.add(path.join(root, 'agents/evolve-runner.md'));
         else if (!docs.includes(file)) readers.add(path.join(skills, path.relative(skills, file).split(path.sep)[0], 'SKILL.md'));
         for (const [pair, target] of pairs) {
           if (target === file && CROSS_READERS[plugin]?.[pair] === 'commands') readers.add(path.join(skills, pair.split(' -> ')[0], 'SKILL.md'));

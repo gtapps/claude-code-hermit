@@ -1,6 +1,6 @@
 ---
 name: claude-harness-canary
-description: Run the minimum current-Claude compatibility canary for claude-code-hermit by driving real interactive Claude Code instances in tmux with --plugin-dir. Use before a core release or after a Claude Code upgrade to verify cached model switching, unattended prompt safety, and native Monitor/Cron routine lifecycle. Core only; not application testing or CI.
+description: Run the minimum current-Claude compatibility canary for hermitd by driving real interactive Claude Code instances in tmux with --plugin-dir. Use before a core release or after a Claude Code upgrade to verify cached model switching, unattended prompt safety, and native Monitor/Cron routine lifecycle. Core only; not application testing or CI.
 ---
 
 # Claude Harness Canary
@@ -32,7 +32,7 @@ Do not recreate generic tmux lifecycle rules locally or hand-roll a fallback. Ex
 
 Run from the repository root.
 
-1. Resolve the absolute core path at `plugins/claude-code-hermit`.
+1. Resolve the absolute core path at `plugins/hermitd`.
 2. Record bounded output from:
 
    ```bash
@@ -50,7 +50,7 @@ Run from the repository root.
    - `hooks/hooks.json`
    - `scripts/lib/harness-command.ts`
    - `scripts/stop-pipeline.ts`
-   - `scripts/hermit-watchdog.ts`
+   - `scripts/hermitd-watchdog.ts`
    - `scripts/ask-gate.ts`
    - `scripts/apply-settings.ts`
    - `scripts/routines.ts`
@@ -77,7 +77,7 @@ For every group project, create:
 <group>/
 ├── .claude/
 │   └── settings.local.json
-├── .claude-code-hermit/
+├── .hermit/
 │   ├── config.json
 │   ├── sessions/SHELL.md
 │   └── state/
@@ -105,7 +105,7 @@ The trust entry is temporary canary state. During cleanup, after the exact group
 
 Set in every inner process:
 
-- `AGENT_DIR=<absolute-group-project>/.claude-code-hermit`
+- `AGENT_DIR=<absolute-group-project>/.hermit`
 - `CLAUDE_PROJECT_DIR=<absolute-group-project>`
 - a group-specific `AGENT_HOOK_PROFILE`
 - `HERMIT_MANAGED` only where the group requires it
@@ -236,7 +236,7 @@ Do not add `allowed_users`. Do not create `state/channel-health.json`. Keep `.cl
    ```
 
    Do not add `-S` and do not substitute pipe-pane scrollback. Store stdout from this single capture immediately.
-5. Import `hasPendingQuestion()` from the live `scripts/hermit-watchdog.ts`, pass the stored capture bytes from Step 4 without recapturing, and record the boolean.
+5. Import `hasPendingQuestion()` from the live `scripts/hermitd-watchdog.ts`, pass the stored capture bytes from Step 4 without recapturing, and record the boolean.
 6. Send Escape once, wait for the normal prompt, and send a harmless nonce prompt to prove the session remains usable.
 7. Verify the target does not exist.
 
@@ -297,7 +297,7 @@ Do not use `TaskList` as a substitute for Monitor inventory; it is a checklist s
 
 Send:
 
-`/claude-code-hermit:hermit-routines load`
+`/hermitd:hermit-routines load`
 
 Wait with one bounded action wait. Harvest every native creation result from the known transcript:
 

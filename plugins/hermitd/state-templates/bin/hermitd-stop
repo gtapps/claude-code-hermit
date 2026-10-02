@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Gracefully stop a running hermit session.
+# Run from project root: .hermit/bin/hermitd-stop [--force]
+exec "$(dirname "$0")/hermitd-run" hermitd-stop "$@"

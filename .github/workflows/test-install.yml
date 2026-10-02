@@ -84,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f "$RUNNER_TEMP/proj/.claude/settings.local.json"
-          grep -q 'claude-code-hermit@claude-code-hermit' \
+          grep -q 'hermitd@hermitd' \
             "$RUNNER_TEMP/proj/.claude/settings.local.json"
 
       - name: Assert the closing block told the operator what to run
@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'Prerequisites set' "$RUNNER_TEMP/out.txt"
-          grep -q 'claude-code-hermit:hatch' "$RUNNER_TEMP/out.txt"
+          grep -q 'hermitd:hatch' "$RUNNER_TEMP/out.txt"
 
       - name: Assert a second run is a no-op that still exits 0
         if: '!cancelled()'
@@ -107,8 +107,8 @@ jobs:
         if: '!cancelled()'
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/proj/.claude-code-hermit"
-          echo '{}' > "$RUNNER_TEMP/proj/.claude-code-hermit/config.json"
+          mkdir -p "$RUNNER_TEMP/proj/.hermit"
+          echo '{}' > "$RUNNER_TEMP/proj/.hermit/config.json"
 
       - name: Run the uninstaller in the scratch project
         if: '!cancelled()'
@@ -130,11 +130,11 @@ jobs:
           # test -f first: grep on a missing file exits 2, which `!` would turn
           # into a vacuous pass.
           test -f "$RUNNER_TEMP/proj/.claude/settings.local.json"
-          ! grep -q 'claude-code-hermit@claude-code-hermit' \
+          ! grep -q 'hermitd@hermitd' \
             "$RUNNER_TEMP/proj/.claude/settings.local.json"
-          test -f "$RUNNER_TEMP/proj/.claude-code-hermit/config.json"
+          test -f "$RUNNER_TEMP/proj/.hermit/config.json"
           claude plugin marketplace list \
-            | grep -qE 'claude-code-hermit[[:space:]]*$'
+            | grep -qE 'hermitd[[:space:]]*$'
 
       - name: Assert a second uninstall keeps state and exits 0
         if: '!cancelled()'
@@ -146,5 +146,5 @@ jobs:
           cd "$RUNNER_TEMP/proj"
           bash "$GITHUB_WORKSPACE/scripts/uninstall.sh" 2>&1 \
             | tee "$RUNNER_TEMP/uninstall-out2.txt"
-          test -f ".claude-code-hermit/config.json"
+          test -f ".hermit/config.json"
           ! grep -q 'nothing to uninstall here' "$RUNNER_TEMP/uninstall-out2.txt"

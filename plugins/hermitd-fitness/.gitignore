@@ -1,0 +1,26 @@
+# Secrets — never commit
+.env
+.mcp.json
+
+# Claude Code local state (when developing the plugin against a local target project)
+.claude/
+.hermit/
+.claude.local/
+
+# Python (defence-in-depth; no Python in this plugin but kept in case of tooling drift)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS / IDE
+.DS_Store
+.obsidian/
+*.swp
+*~
+
+# Cost log
+.claude/cost-log.jsonl
+
+# Graphify output
+graphify-out

@@ -4,17 +4,17 @@ description: Bump a plugin's version, write a detailed changelog entry for the u
 ---
 # Release
 
-Bump version, write changelog, commit, and push for a single plugin in the monorepo. The changelog entry is critical because the upgrade skill (`skills/hermit-evolve/SKILL.md`) reads it to know what to tell hermits during `/claude-code-hermit:hermit-evolve`.
+Bump version, write changelog, commit, and push for a single plugin in the monorepo. The changelog entry is critical because the upgrade skill (`skills/hermit-evolve/SKILL.md`) reads it to know what to tell hermits during `/hermitd:hermit-evolve`.
 
 ## Usage
 
 `/release <plugin-slug>` — release the plugin at `plugins/<plugin-slug>/`.
 
 Examples:
-- `/release claude-code-hermit` — release the core plugin
-- `/release claude-code-dev-hermit` — release the dev hermit
-- `/release claude-code-homeassistant-hermit` — release the HA hermit
-- `/release laravel-forge-hermit` — release the Laravel Forge hermit
+- `/release hermitd` — release the core plugin
+- `/release hermitd-dev` — release the dev hermit
+- `/release hermitd-homeassistant` — release the HA hermit
+- `/release hermitd-laravel-forge` — release the Laravel Forge hermit
 
 If invoked without a slug, list all `plugins/<name>/` directories that contain `.claude-plugin/plugin.json` and ask the operator which one via AskUserQuestion before proceeding.
 
@@ -59,7 +59,7 @@ Run before anything else. Abort the release if any step fails.
    - Agents in `plugins/<slug>/CLAUDE.md` match actual `plugins/<slug>/agents/` files
    - Hook scripts referenced in `plugins/<slug>/hooks/hooks.json` exist in `plugins/<slug>/scripts/`
    - State-template JSON files parse correctly
-   - `config.json.template` keys are in sync with `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.ts` (core only)
+   - `config.json.template` keys are in sync with `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermitd-start.ts` (core only)
 
 If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if justified. Stale-reference detection-and-fix is consolidated into Step 4 below.
 
@@ -124,11 +124,11 @@ Prepend a new entry to `plugins/<slug>/CHANGELOG.md` immediately after the `# Ch
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+Run `/hermitd:hermit-evolve`. The evolve skill handles:
 
 1. **Imperative step title** — what to do, in one sentence.
 
-**Operator action required:** `.claude-code-hermit/bin/hermit-docker restart` (or `hermit-stop && hermit-start`).
+**Operator action required:** `.hermit/bin/hermitd-docker restart` (or `hermitd-stop && hermitd-start`).
 
 No `config.json` changes required.
 ```
@@ -149,7 +149,7 @@ No `config.json` changes required.
 3. **What belongs where:**
    - Why it changed → Changed/Fixed bullet.
    - What evolve executes → Upgrade Instructions (imperative, numbered).
-   - An action only the operator's environment can perform (restart, rebuild, host-side command) → one line after the numbered list, prefixed `**Operator action required:**` (canonical example: `.claude-code-hermit/bin/hermit-docker restart`). Never a numbered step and never a `**Note:**`.
+   - An action only the operator's environment can perform (restart, rebuild, host-side command) → one line after the numbered list, prefixed `**Operator action required:**` (canonical example: `.hermit/bin/hermitd-docker restart`). Never a numbered step and never a `**Note:**`.
    - Behavior deltas that need no action but operators should know → one final line after the numbered list, prefixed `**Note:**`. Not a step.
 
 **The Upgrade Instructions section is the most important part.** The evolve skill reads this to know what actions to take for each hermit. Non-imperative steps cause evolve to misparse or skip them.
@@ -170,24 +170,24 @@ Skip the step entirely if nothing was added. The plugin-validator (Step 1.3) cov
 Update the version string in:
 - `plugins/<slug>/.claude-plugin/plugin.json` → `"version"` field
 - `.claude-plugin/marketplace.json` → find the entry in `plugins[]` where `"name" == "<slug>"` and update its `"version"` field. Other plugin entries are untouched.
-- `plugins/<slug>/README.md` → version badge if present: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" plugins/<slug>/README.md` that the new version appears and the old one does not. Skip silently if the README has no version badge. (For `claude-code-hermit`, skip this direct edit — the sync block below re-derives the whole file from root, picking up the updated badge automatically.)
-- If `<slug>` is `claude-code-hermit`: also update the root `README.md` badge — `version-OLD-green.svg` → `version-NEW-green.svg` and `Version OLD` → `Version NEW`. This is the only plugin whose version the root README tracks.
+- `plugins/<slug>/README.md` → version badge if present: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" plugins/<slug>/README.md` that the new version appears and the old one does not. Skip silently if the README has no version badge. (For `hermitd`, skip this direct edit — the sync block below re-derives the whole file from root, picking up the updated badge automatically.)
+- If `<slug>` is `hermitd`: also update the root `README.md` badge — `version-OLD-green.svg` → `version-NEW-green.svg` and `Version OLD` → `Version NEW`. This is the only plugin whose version the root README tracks.
 
-**Sync plugin README from root (claude-code-hermit only):** `plugins/claude-code-hermit/README.md` is a path-adjusted derivative of the root `README.md`. After updating version badges, re-derive it by applying these substitutions to the root README content:
+**Sync plugin README from root (hermitd only):** `plugins/hermitd/README.md` is a path-adjusted derivative of the root `README.md`. After updating version badges, re-derive it by applying these substitutions to the root README content:
 
 | In root `README.md`                              | In plugin `README.md`                          |
 |--------------------------------------------------|------------------------------------------------|
 | `href="LICENSE"`                                 | `href="../../LICENSE"`                         |
 | `[MIT](LICENSE)`                                 | `[MIT](../../LICENSE)`                         |
-| `href="plugins/claude-code-hermit/CHANGELOG.md"` | `href="CHANGELOG.md"`                          |
-| `src="plugins/claude-code-hermit/assets/`        | `src="assets/`                                 |
-| `](plugins/claude-code-hermit/docs/`             | `](docs/`                                      |
-| `](plugins/claude-code-dev-hermit/`              | `](../claude-code-dev-hermit/`                 |
-| `](plugins/claude-code-homeassistant-hermit/`    | `](../claude-code-homeassistant-hermit/`       |
-| `](plugins/claude-code-fitness-hermit/`          | `](../claude-code-fitness-hermit/`             |
-| `](plugins/laravel-forge-hermit/`                | `](../laravel-forge-hermit/`                   |
+| `href="plugins/hermitd/CHANGELOG.md"` | `href="CHANGELOG.md"`                          |
+| `src="plugins/hermitd/assets/`        | `src="assets/`                                 |
+| `](plugins/hermitd/docs/`             | `](docs/`                                      |
+| `](plugins/hermitd-dev/`              | `](../hermitd-dev/`                 |
+| `](plugins/hermitd-homeassistant/`    | `](../hermitd-homeassistant/`       |
+| `](plugins/hermitd-fitness/`          | `](../hermitd-fitness/`             |
+| `](plugins/hermitd-laravel-forge/`                | `](../hermitd-laravel-forge/`                   |
 
-Write the result to `plugins/claude-code-hermit/README.md`.
+Write the result to `plugins/hermitd/README.md`.
 
 After editing, verify the manifest and marketplace are in sync — the plugin manifest wins silently if they differ:
 ```bash

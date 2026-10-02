@@ -14,8 +14,8 @@ Run plugin test suites and report a concise summary. Operates on a single plugin
 `/test-run <plugin-slug>` — run tests for just that plugin.
 
 Examples:
-- `/test-run claude-code-hermit`
-- `/test-run claude-code-homeassistant-hermit`
+- `/test-run hermitd`
+- `/test-run hermitd-homeassistant`
 
 ## Steps
 

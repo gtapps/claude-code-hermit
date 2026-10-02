@@ -1,0 +1,289 @@
+// In-process tests for the scripts/proposal.ts write verbs.
+//
+// The companion file (proposal-write.test.ts) spawns the CLI and owns the
+// process-boundary contract — argv, stdout grammar, exit codes. These call the
+// verbs directly, which is what makes the grammar itself (header parsing, the
+// EEXIST suffix walk, the `@now` idempotency guard) reachable per-case without
+// a subprocess or an AGENT_DIR override. Keep contract assertions there and
+// grammar assertions here.
+
+import { describe, test, expect, spyOn } from 'bun:test';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import {
+  verbCreate, verbPatch, verbRoutine,
+  grabHeader, parseStringArray, sectionEndsWithLine,
+} from '../scripts/proposal';
+import { extractSection } from '../scripts/lib/md-write';
+import { memoryDirFor } from '../scripts/lib/cc-compat';
+import { PLUGIN_ROOT, runProposal, runScript } from './helpers/run';
+import { withDir } from './helpers/workdir';
+
+function stateDirOf(dir: string): string {
+  return path.join(dir, '.hermit');
+}
+
+// withDir already makes sessions/ and state/; add what the create verb needs.
+function seed(dir: string, config: Record<string, unknown> = {}): string {
+  const base = stateDirOf(dir);
+  fs.mkdirSync(path.join(base, 'proposals'), { recursive: true });
+  fs.mkdirSync(path.join(base, 'templates'), { recursive: true });
+  fs.copyFileSync(
+    path.join(PLUGIN_ROOT, 'state-templates', 'PROPOSAL.md.template'),
+    path.join(base, 'templates', 'PROPOSAL.md.template'),
+  );
+  fs.writeFileSync(
+    path.join(base, 'config.json'),
+    JSON.stringify({ timezone: 'Europe/London', routines: [], ...config }),
+  );
+  return base;
+}
+
+const BODY = [
+  '## Context', 'ctx', '',
+  '## Problem', 'prob', '',
+  '## Operator Decision', '',
+].join('\n');
+
+function heredoc(header: Record<string, string>, body = BODY): string {
+  return Object.entries(header).map(([k, v]) => `${k}: ${v}`).join('\n') + '\n---\n' + body;
+}
+
+describe('verbCreate grammar', () => {
+  test('happy path returns the canonical id and writes the file it names', withDir(async (dir) => {
+    const base = seed(dir);
+    const id = verbCreate(base, heredoc({ Title: 'Ship the thing', Tags: '["architecture"]' }));
+
+    expect(id).toMatch(/^PROP-001-ship-thing-\d{6}$/);
+    const content = fs.readFileSync(path.join(base, 'proposals', `${id}.md`), 'utf-8');
+    expect(content).toContain(`id: ${id}`);
+    expect(content).toContain('status: proposed');
+    expect(content).toContain('tags: ["architecture"]');
+    expect(content).toContain(`# Proposal: ${id} — Ship the thing`);
+  }));
+
+  test.each([
+    ['no separator line', 'Title: x\nbody with no separator', 'ERROR|missing-separator'],
+    ['body is only whitespace', 'Title: x\n---\n   \n', 'ERROR|empty-body'],
+    ['no Title header', heredoc({ Source: 'manual' }), 'ERROR|missing-title'],
+    ['Title present but blank', heredoc({ Title: '   ' }), 'ERROR|missing-title'],
+    ['category outside the enum', heredoc({ Title: 'x', Category: 'wishlist' }), 'ERROR|invalid-category'],
+    ['Tags is not JSON', heredoc({ Title: 'x', Tags: 'architecture' }), 'ERROR|invalid-tags'],
+    ['Tags is JSON but not string[]', heredoc({ Title: 'x', Tags: '[1,2]' }), 'ERROR|invalid-tags'],
+    ['Related-Sessions is malformed', heredoc({ Title: 'x', 'Related-Sessions': '{}' }), 'ERROR|invalid-related-sessions'],
+  ])('%s', (_name, stdin, expected) => withDir(async (dir) => {
+    const base = seed(dir);
+    expect(verbCreate(base, stdin)).toBe(expected);
+    expect(fs.readdirSync(path.join(base, 'proposals'))).toEqual([]);
+  })());
+
+  test('a bare `Session:` header yields null without a runtime session ID', withDir(async (dir) => {
+    const base = seed(dir);
+    fs.writeFileSync(path.join(base, 'state', 'runtime.json'), JSON.stringify({}));
+
+    const id = verbCreate(base, heredoc({ Title: 'x', Session: '' }));
+    expect(fs.readFileSync(path.join(base, 'proposals', `${id}.md`), 'utf-8')).toContain('session: null');
+  }));
+
+  test('an absent Operator Decision section is appended so patch has somewhere to write', withDir(async (dir) => {
+    const base = seed(dir);
+    const id = verbCreate(base, heredoc({ Title: 'x' }, '## Context\nctx'));
+    expect(fs.readFileSync(path.join(base, 'proposals', `${id}.md`), 'utf-8')).toContain('## Operator Decision');
+  }));
+
+  test('a missing template fails before any write', withDir(async (dir) => {
+    const base = seed(dir);
+    fs.rmSync(path.join(base, 'templates', 'PROPOSAL.md.template'));
+    expect(verbCreate(base, heredoc({ Title: 'x' }))).toBe('ERROR|template-missing');
+    expect(fs.readdirSync(path.join(base, 'proposals'))).toEqual([]);
+  }));
+
+  // Only reachable in production when two processes claim the same number at the
+  // same second — the race the exclusive-create loop exists to absorb. Forcing
+  // one EEXIST is what an in-process caller can do that a spawned CLI cannot.
+  test('an EEXIST on the first exclusive write walks to the -a suffix', withDir(async (dir) => {
+    const base = seed(dir);
+    const real = fs.writeFileSync;
+    let thrown = false;
+    const spy = spyOn(fs, 'writeFileSync').mockImplementation(((...args: any[]) => {
+      if (!thrown && args[2]?.flag === 'wx') {
+        thrown = true;
+        const e: any = new Error('EEXIST'); e.code = 'EEXIST'; throw e;
+      }
+      return (real as any)(...args);
+    }) as any);
+
+    try {
+      const id = verbCreate(base, heredoc({ Title: 'Racing create' }));
+      expect(thrown).toBe(true);
+      expect(id).toMatch(/^PROP-001-racing-create-\d{6}a$/);
+      expect(fs.existsSync(path.join(base, 'proposals', `${id}.md`))).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  }));
+});
+
+describe('verbPatch grammar', () => {
+  function seedProposal(dir: string): { base: string; id: string } {
+    const base = seed(dir);
+    const id = verbCreate(base, heredoc({ Title: 'Patch me' }));
+    return { base, id };
+  }
+
+  test('frontmatter set and Operator Decision append land in one write', withDir(async (dir) => {
+    const { base, id } = seedProposal(dir);
+    const verdict = verbPatch(base, 'Decision: Accepted on @now.', [id, '--set', 'status=accepted']);
+
+    expect(verdict).toBe(`OK|${id}`);
+    const content = fs.readFileSync(path.join(base, 'proposals', `${id}.md`), 'utf-8');
+    expect(content).toContain('status: accepted');
+    expect(content).toMatch(/Accepted on \d{4}-\d{2}-\d{2}T[\d:]{8}[+-]\d{2}:\d{2}\./);
+  }));
+
+  test('re-applying the same @now decision line is idempotent', withDir(async (dir) => {
+    const { base, id } = seedProposal(dir);
+    const stdin = 'Decision: Accepted on @now.';
+    verbPatch(base, stdin, [id]);
+    verbPatch(base, stdin, [id]);
+
+    const content = fs.readFileSync(path.join(base, 'proposals', `${id}.md`), 'utf-8');
+    expect(content.match(/Accepted on /g)?.length).toBe(1);
+  }));
+
+  test.each([
+    ['a parent-dir escape', '../config.json'],
+    ['a nested path', 'sub/PROP-001.md'],
+    ['a dotfile', '.hidden.md'],
+    ['an absent proposal', 'PROP-999-nope.md'],
+  ])('%s is refused as no-such-proposal', (_name, filename) => withDir(async (dir) => {
+    const base = seed(dir);
+    const before = fs.readFileSync(path.join(base, 'config.json'), 'utf-8');
+    expect(verbPatch(base, '', [filename, '--set', 'status=accepted'])).toBe('ERROR|no-such-proposal');
+    expect(fs.readFileSync(path.join(base, 'config.json'), 'utf-8')).toBe(before);
+  })());
+
+  test('a --set with no `=` is rejected', withDir(async (dir) => {
+    const { base, id } = seedProposal(dir);
+    expect(verbPatch(base, '', [id, '--set', 'statusaccepted'])).toBe('ERROR|invalid-set');
+  }));
+
+  test('an invalid key is rejected before the file is touched, decision line included', withDir(async (dir) => {
+    const { base, id } = seedProposal(dir);
+    const propPath = path.join(base, 'proposals', `${id}.md`);
+    const before = fs.readFileSync(propPath, 'utf-8');
+
+    expect(verbPatch(base, 'Decision: Accepted on @now.', [id, '--set', 'sta tus=accepted']))
+      .toBe('ERROR|invalid-key:sta tus');
+    expect(fs.readFileSync(propPath, 'utf-8')).toBe(before);
+  }));
+
+  test('--request-compact writes the marker alongside the patch', withDir(async (dir) => {
+    const { base, id } = seedProposal(dir);
+    verbPatch(base, '', [id, '--set', 'status=resolved', '--request-compact']);
+
+    const marker = JSON.parse(fs.readFileSync(path.join(base, 'state', 'compact-requested.json'), 'utf-8'));
+    expect(marker.reason).toBe('proposal-resolve');
+  }));
+});
+
+describe('the remaining write verbs', () => {
+  test('routine upserts by id', withDir(async (dir) => {
+    const base = seed(dir);
+    const entry = { id: 'daily-brief', schedule: '0 8 * * *', skill: 'brief', enabled: true };
+
+    expect(verbRoutine(base, JSON.stringify(entry))).toBe('OK|added');
+    expect(verbRoutine(base, JSON.stringify({ ...entry, enabled: false }))).toBe('OK|updated');
+
+    const config = JSON.parse(fs.readFileSync(path.join(base, 'config.json'), 'utf-8'));
+    expect(config.routines).toHaveLength(1);
+    expect(config.routines[0].enabled).toBe(false);
+  }));
+
+  test.each([
+    ['malformed JSON', 'not json', 'ERROR|invalid-json'],
+    ['a JSON array', '[]', 'ERROR|invalid-json'],
+    ['a missing field', '{"id":"x","schedule":"* * * * *","skill":"brief"}', 'ERROR|missing-field:enabled'],
+    ['a blank id', '{"id":"","schedule":"* * * * *","skill":"brief","enabled":true}', 'ERROR|missing-field:id'],
+  ])('routine rejects %s', (_name, stdin, expected) => withDir(async (dir) => {
+    expect(verbRoutine(seed(dir), stdin as string)).toBe(expected);
+  })());
+});
+
+describe('proposal.ts anchor', () => {
+  test('prints the Anchor line when proposals/ is present', withDir(async (dir) => {
+    const base = seed(dir);
+    const r = await runProposal(base, ['anchor']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      `Anchor: root=${path.resolve(base)} memory_dir=${memoryDirFor(path.dirname(base))}\n`,
+    );
+  }));
+
+  test('prints the Anchor line and writes no index when proposals/ is absent', withDir(async (dir) => {
+    const base = seed(dir);
+    fs.rmSync(path.join(base, 'proposals'), { recursive: true });
+    const r = await runProposal(base, ['anchor']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      `Anchor: root=${path.resolve(base)} memory_dir=${memoryDirFor(path.dirname(base))}\n`,
+    );
+    expect(fs.existsSync(path.join(base, 'state', 'proposals-index.json'))).toBe(false);
+  }));
+
+  // A worktree session passes the shipped relative spelling, which resolves to the
+  // worktree's projected `.hermit` (config.json, no state/). The pin
+  // normalizes it back to main; the anchor line must name main, not the projection —
+  // the projection would pass the agents' config.json blindness check while every
+  // real source sits in main.
+  test('names the main root when argv is a worktree projection', withDir(async (dir) => {
+    const base = seed(dir);
+    const projection = path.join(dir, 'wt', '.hermit');
+    fs.mkdirSync(projection, { recursive: true });
+    fs.writeFileSync(path.join(projection, 'config.json'), '{}');
+    const r = await runScript('proposal.ts', {
+      args: ['anchor', projection],
+      env: { AGENT_DIR: base },
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toBe(
+      `Anchor: root=${path.resolve(base)} memory_dir=${memoryDirFor(path.dirname(base))}\n`,
+    );
+  }));
+
+  test('exit 1 and empty stdout on a drifted argv', withDir(async (dir) => {
+    const base = seed(dir);
+    const foreign = path.join(dir, 'elsewhere', '.hermit');
+    fs.mkdirSync(foreign, { recursive: true });
+    const r = await runScript('proposal.ts', {
+      args: ['anchor', foreign],
+      env: { AGENT_DIR: base },
+    });
+    expect(r.exitCode).toBe(1);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('state dir must be this project');
+  }));
+});
+
+describe('header and section helpers', () => {
+  test('grabHeader trims its value and matches only at line start', () => {
+    expect(grabHeader('Title:   spaced   \nSource: manual', 'Title')).toBe('spaced');
+    expect(grabHeader('Not-Title: x', 'Title')).toBe(null);
+  });
+
+  test('parseStringArray separates "absent" from "malformed"', () => {
+    expect(parseStringArray(null)).toEqual([]);
+    expect(parseStringArray('  ')).toEqual([]);
+    expect(parseStringArray('["a","b"]')).toEqual(['a', 'b']);
+    expect(parseStringArray('[1]')).toBe(null);
+    expect(parseStringArray('nope')).toBe(null);
+  });
+
+  test('sectionEndsWithLine treats @now as a timestamp wildcard', () => {
+    const doc = '## Operator Decision\n\nAccepted on 2026-08-13T23:45:01+01:00.\n';
+    expect(sectionEndsWithLine(doc, 'Operator Decision', 'Accepted on @now.')).toBe(true);
+    expect(sectionEndsWithLine(doc, 'Operator Decision', 'Deferred on @now.')).toBe(false);
+    expect(sectionEndsWithLine(doc, 'Missing Section', 'Accepted on @now.')).toBe(false);
+  });
+});
