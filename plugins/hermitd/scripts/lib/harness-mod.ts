@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { acquireLockWithWait, releaseLock } from './lockfile';
-import { ARG_RE, type ParsedCommand } from './harness-command';
+import { ARG_RE, COMMAND_MARKER_TTL_SECS, type ParsedCommand } from './harness-command';
 
 export type ReplyTarget = { source: string; chat_id: string };
 export type HarnessRequest = {
@@ -35,7 +35,9 @@ export function writeModState(dir: string, file: string, value: unknown): void {
 export function readDeferredSwitch(dir: string): HarnessRequest | null {
   try {
     const value = JSON.parse(fs.readFileSync(path.join(dir, 'state', DEFERRED_SWITCH_FILE), 'utf8'));
+    // A request is a moment, not a standing order: one that outlived a restart or wedge expires.
     if (!value || typeof value.requested_at !== 'string' || !Number.isFinite(Date.parse(value.requested_at))
+      || Date.now() - Date.parse(value.requested_at) > COMMAND_MARKER_TTL_SECS * 1000
       || !Array.isArray(value.commands) || value.commands.length < 1 || value.commands.length > 2
       || !value.commands.every((c: ParsedCommand) => c && ['/model', '/effort'].includes(c.command)
         && typeof c.arg === 'string' && ARG_RE.test(c.arg))) return null;

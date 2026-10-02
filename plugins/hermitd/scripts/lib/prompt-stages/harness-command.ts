@@ -25,9 +25,13 @@ export function run(ctx: StageContext): StageResult | void {
   if (!authorized) return; // unauthorized — silent no-op
 
   if (ctx.harnessMode) {
+    const reply_to = { source: env.sourceKey, chat_id: env.chatId };
+    // A recovery restart or reset is mid-flight; a command now would race it.
+    if (ctx.runtime()?.transition) {
+      return { harness: { decision: 'refuse', reason: 'A restart or context reset is in progress. Resend the command once it finishes.', reply_to } };
+    }
     return { harness: {
-      decision: 'run', commands: [parsed], dir,
-      reply_to: { source: env.sourceKey, chat_id: env.chatId },
+      decision: 'run', commands: [parsed], dir, reply_to,
       by: safeForLLM(senderLabel(env).slice(0, 64)),
     } };
   }

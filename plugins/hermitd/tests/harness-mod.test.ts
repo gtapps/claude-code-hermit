@@ -153,7 +153,7 @@ for (const body of ['!compact', '!advisor opus', '!effort low']) {
 
 test('concurrent arm and stale acknowledgement preserve the new request', async () => {
   const { wd, dir } = fixture();
-  const old = '2000-01-01T00:00:00.000Z';
+  const old = new Date(Date.now() - 1000).toISOString();
   const file = path.join(dir, 'state/pending-harness-switch.json');
   fs.writeFileSync(file, JSON.stringify({ commands: [{ command: '/model', arg: 'old' }], by: 'terminal', requested_at: old }));
   const [, armed] = await Promise.all([
@@ -162,4 +162,20 @@ test('concurrent arm and stale acknowledgement preserve the new request', async 
   ]);
   expect(armed.exitCode).toBe(0);
   expect(JSON.parse(fs.readFileSync(file, 'utf8')).commands).toEqual([{ command: '/model', arg: 'sonnet' }]);
+});
+
+test('intake refuses during a lifecycle transition', async () => {
+  const { wd, dir } = fixture();
+  fs.writeFileSync(path.join(dir, 'state/runtime.json'), JSON.stringify({ cc_session_id: 'resident', transition: 'restart' }));
+  const result = await call(wd, 'intake', envelope('!clear'));
+  expect(result.decision).toBe('refuse');
+  expect(result.reply_to).toEqual({ source: 'telegram', chat_id: '12345' });
+});
+
+test('claim ignores an expired deferred switch', async () => {
+  const { wd, dir } = fixture();
+  fs.writeFileSync(path.join(dir, 'state/pending-harness-switch.json'), JSON.stringify({
+    commands: [{ command: '/model', arg: 'sonnet' }], by: 'terminal', requested_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  }));
+  expect(await call(wd, 'claim')).toEqual({ decision: 'pass' });
 });

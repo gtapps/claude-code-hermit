@@ -68,15 +68,19 @@ async function finish($: EngineInterface, outcome: Outcome) {
   active = undefined;
   approval = null;
   outcomes.push(outcome);
-  // A dependent effort leg is never run after a failed or uncertain model leg.
-  if (outcome.status !== 'ok' || outcomes.length === request.commands.length) {
-    const completed = request;
-    const results = outcomes;
-    request = undefined;
-    outcomes = [];
-    await finalize($, { ...completed, outcomes: results });
+  try {
+    // A dependent effort leg is never run after a failed or uncertain model leg.
+    if (outcome.status !== 'ok' || outcomes.length === request.commands.length) {
+      const completed = request;
+      const results = outcomes;
+      request = undefined;
+      outcomes = [];
+      await finalize($, { ...completed, outcomes: results });
+    }
+  } finally {
+    // A failed reply must not strand the requests queued behind this one.
+    schedule($);
   }
-  schedule($);
 }
 
 function observe($: EngineInterface) {
@@ -105,7 +109,8 @@ async function dispatch($: EngineInterface) {
   approval = command.command === '/model' ? command.arg : null;
   try {
     const running = $.command.run({ command: command.command.slice(1), args: command.arg ?? '' });
-    if (request.requested_at && outcomes.length === 0) await bridge($, 'ack', request.requested_at);
+    // An ack failure leaves the request for a later claim; it says nothing about this run.
+    if (request.requested_at && outcomes.length === 0) await bridge($, 'ack', request.requested_at).catch(() => undefined);
     await running;
     if (active !== current) return;
     current.resolved = true;

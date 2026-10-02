@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { hermitDir } from './lib/cc-compat';
 import { readRuntimeJson } from './lib/runtime';
-import { runPromptPipeline } from './user-prompt-pipeline';
 import { applyContextReset } from './lib/context-reset';
 import { renderCommand, writeSwitchVerify } from './lib/harness-command';
 import { sendToChannel } from './lib/channel-send';
@@ -17,8 +16,11 @@ export async function run(verb: string, sessionId: string, payload = ''): Promis
   const runtime = readRuntimeJson(path.join(dir, 'state'));
   if (!fs.existsSync(dir) || !sessionId || runtime?.cc_session_id !== sessionId) return { decision: 'pass' };
   switch (verb) {
-    case 'intake':
+    case 'intake': {
+      // Loaded only here: claim runs after every main turn and needs none of the stages.
+      const { runPromptPipeline } = await import('./user-prompt-pipeline');
       return runPromptPipeline(JSON.stringify({ prompt: payload, session_id: sessionId }), true);
+    }
     case 'loaded':
       writeModState(dir, MOD_LOADED_FILE, { session_id: sessionId });
       return { decision: 'ok' };
@@ -47,7 +49,7 @@ export async function run(verb: string, sessionId: string, payload = ''): Promis
         }
       }
       const text = input.reason ?? outcomes.map(outcome =>
-        `${renderCommand(outcome)}: ${outcome.status === 'unknown' ? 'outcome unknown (deadline reached)' : outcome.status}${outcome.text ? ` — ${outcome.text}` : ''}`
+        `${renderCommand(outcome)}: ${outcome.status === 'unknown' ? 'outcome unknown (deadline reached)' : outcome.status}${outcome.text ? ` (${outcome.text})` : ''}`
       ).join('\n');
       if (!input.reply_to) return { decision: 'ok' };
       const sent = await sendToChannel(dir, text, {
