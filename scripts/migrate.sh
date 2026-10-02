@@ -106,8 +106,10 @@ function moveAndHelp(project, root) {
     if (fs.existsSync(next)) throw new Error(`Both state directories exist: ${project}`);
     fs.renameSync(old, next);
   }
-  console.log(run('bun', [path.join(root, 'scripts/migrate-from-claude-code-hermit.ts'), project], project));
+  return run('bun', [path.join(root, 'scripts/migrate-from-claude-code-hermit.ts'), project], project);
 }
+// migrate-from-claude-code-hermit.ts in installed cores ends with its own completion line; the final summary replaces it.
+const notesOf = output => output.split('\n').filter(line => line && line !== 'Project migration complete.');
 async function containerMain() {
   const project = process.cwd();
   const record = json(path.join(state(project), 'state/hermitd-inventory.json'));
@@ -117,7 +119,7 @@ async function containerMain() {
     swap(record);
     const installed = core(pluginList(project), project);
     if (!installed || installed.id !== 'hermitd@hermitd') throw new Error('New container core install is missing');
-    moveAndHelp(project, installed.installPath);
+    console.log(moveAndHelp(project, installed.installPath));
   });
 }
 async function main() {
@@ -163,9 +165,13 @@ async function main() {
     const file = path.join(state(row.project), 'state/hermitd-inventory.json');
     if (!fs.existsSync(file)) save(file, { installs: row.installs });
   }
+  // Notes exist only for projects migrated in this run; a resumed run lost earlier ones.
+  const notes = new Map();
   for (const row of inventory.projects.filter(row => row.mode === 'docker' && !done(row.project))) {
     await stopped(row.project, row.mode);
-    console.log(inContainer(row.project, `bun -e ${quote(process.env.HERMITD_MIGRATION_SOURCE)} -- --container`));
+    console.log(`Migrating ${path.basename(row.project)} (Docker)...`);
+    notes.set(row.project, notesOf(inContainer(row.project, `bun -e ${quote(process.env.HERMITD_MIGRATION_SOURCE)} -- --container`)));
+    console.log(`Rebuilding the Docker image for ${path.basename(row.project)}. This can take several minutes.`);
     compose(row.project, ['build']);
     // A rerun before the stamp recreates the slice from the host inventory.
     fs.rmSync(path.join(state(row.project), 'state/hermitd-inventory.json'), { force: true });
@@ -177,8 +183,9 @@ async function main() {
   for (const row of inventory.projects.filter(row => row.mode === 'tmux' && !done(row.project))) {
     if (!hostCore) throw new Error(`New host core install missing for ${row.project}`);
     await stopped(row.project, row.mode, hostCore.installPath);
+    console.log(`Migrating ${path.basename(row.project)} (tmux)...`);
     await locked(row.project, hostCore.installPath, async () => {
-      moveAndHelp(row.project, hostCore.installPath);
+      notes.set(row.project, notesOf(moveAndHelp(row.project, hostCore.installPath)));
       fs.writeFileSync(stamp(row.project), 'hermitd\n');
     });
   }
@@ -194,7 +201,6 @@ async function main() {
       if (row.mode === 'tmux' && row.watchdog) run('bun', [path.join(hostCore.installPath, 'scripts/hermitd-watchdog.ts'), 'install'], row.project);
     }
   } else {
-    console.log('host CLI not installed; run the installer');
     // Docker-only hosts still need a host registry. Execute its sole writer in
     // a one-off container, pointing it at a dedicated mount of host config.
     for (const row of inventory.projects) {
@@ -207,12 +213,26 @@ async function main() {
     }
   }
   const oldShim = path.join(os.homedir(), '.local/bin/hermit');
-  if (fs.existsSync(oldShim) && !fs.lstatSync(oldShim).isSymbolicLink() && fs.readFileSync(oldShim, 'utf8').split('\n').includes('# claude-code-hermit: managed host CLI')) fs.unlinkSync(oldShim);
+  const shimRemoved = fs.existsSync(oldShim) && !fs.lstatSync(oldShim).isSymbolicLink() && fs.readFileSync(oldShim, 'utf8').split('\n').includes('# claude-code-hermit: managed host CLI');
+  if (shimRemoved) fs.unlinkSync(oldShim);
   if (!inventory.projects.every(row => done(row.project))) throw new Error('Incomplete migration: a project stamp is missing');
+  const renames = rows => rows.filter(row => row.enabled).map(row => `${row.id.split('@')[0]} -> ${newId(row.id).split('@')[0]}`).join(', ');
+  console.log(`\nMigrated ${inventory.projects.length} agent${inventory.projects.length === 1 ? '' : 's'}:`);
+  for (const row of inventory.projects) {
+    const docker = row.mode === 'docker';
+    const plugins = renames(docker ? row.installs : inventory.installs.filter(install => install.scope === 'user' || install.projectPath === row.project));
+    console.log(`\n${path.basename(row.project)} (${docker ? 'Docker' : 'tmux'})`);
+    console.log('  State folder: .claude-code-hermit/ -> .hermit/');
+    if (plugins) console.log(`  Plugins${docker ? ' in container' : ''}: ${plugins}`);
+    else if (!docker && !inventory.hadMarketplace) console.log('  Plugins: none reinstalled, the old marketplace was already removed.\n    Reinstall siblings with: claude plugin install <name>@hermitd --scope local');
+    console.log(`  Launchers: bin/hermit-* -> bin/hermitd-*${docker ? ', Docker entrypoint refreshed, image rebuilt' : hostCore && row.watchdog ? ', watchdog reinstalled' : ''}`);
+    for (const line of notes.get(row.project) ?? ['(details printed in an earlier run)']) console.log(`  ${line}`);
+    console.log(`  Start: cd ${quote(row.project)} && ${docker ? '.hermit/bin/hermitd-docker up' : 'hermitd start'}`);
+  }
+  console.log(`\nHost: ${hostCore ? `hermitd CLI installed at ~/.local/bin/hermitd${shimRemoved ? ', old hermit shim removed' : ''}` : 'hermitd CLI not installed; run the installer'}.`);
   for (const row of [...inventory.installs, ...inventory.projects.flatMap(row => row.installs)].filter(row => !row.enabled)) console.log(`Disabled install not reinstalled: ${row.id} (${row.scope}${row.projectPath ? ', ' + row.projectPath : ''})`);
   fs.unlinkSync(inventoryFile);
-  for (const row of inventory.projects) console.log(`cd ${quote(row.project)} && ${row.mode === 'docker' ? '.hermit/bin/hermitd-docker up' : 'hermitd start'}`);
-  console.log('Then run /hermitd:hermit-evolve in each agent.');
+  console.log('\nNext: run /hermitd:hermit-evolve in each agent.');
 }
 try {
   if (process.argv.includes('--container')) await containerMain(); else await main();

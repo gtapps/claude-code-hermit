@@ -73,7 +73,7 @@ for(const method of ['renameSync','writeFileSync']){const original=fs[method].bi
   write(path.join(bin, 'claude'), claudeStub); write(path.join(bin, 'docker'), dockerStub);
   write(path.join(bin, 'tmux'), '#!/bin/sh\n[ "$RUNNING" = tmux ]\n');
   write(path.join(home, '.local/bin/hermit'), '#!/bin/sh\necho foreign\n');
-  const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_PLUGIN_CACHE_DIR: '', HERMIT_PLUGIN_ROOT: '', container: '', PATH: `${bin}:${home}/.local/bin:${process.env.PATH}`, REAL_BUN: process.execPath, FAULT_MODULE: faultModule, NEW_CORE: newCore, HOST_CONFIG: config, DOCKER_CONFIG: dockerConfig, CALLS: path.join(home, 'calls'), FAIL_ONCE: path.join(home, 'failed-once'), IN_CONTAINER: '', RUNNING: '' };
+  const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: config, CLAUDE_CODE_PLUGIN_CACHE_DIR: '', HERMIT_PLUGIN_ROOT: '', container: '', PATH: [bin, `${home}/.local/bin`, ...process.env.PATH!.split(':').filter(dir => dir !== path.join(os.homedir(), '.local/bin'))].join(':'), REAL_BUN: process.execPath, FAULT_MODULE: faultModule, NEW_CORE: newCore, HOST_CONFIG: config, DOCKER_CONFIG: dockerConfig, CALLS: path.join(home, 'calls'), FAIL_ONCE: path.join(home, 'failed-once'), IN_CONTAINER: '', RUNNING: '' };
   async function run(extra: Record<string, string> = {}) {
     const child = Bun.spawn(['bash', path.join(repo, 'scripts/migrate.sh')], { cwd: home, env: { ...env, ...extra }, stdout: 'pipe', stderr: 'pipe' });
     const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
@@ -100,6 +100,12 @@ test('all agents migrate, disabled installs are reported, foreign shim survives,
   const f = fixture(); const result = await f.run();
   expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
   expect(result.stdout).toContain('Disabled install not reinstalled: feed-hermit');
+  expect(result.stdout).toContain('Rebuilding the Docker image for docker.');
+  expect(result.stdout).toContain('Migrated 3 agents:');
+  expect(result.stdout).toContain('two (tmux)');
+  expect(result.stdout).toContain('Plugins: claude-code-hermit -> hermitd, claude-code-dev-hermit -> hermitd-dev');
+  expect(result.stdout).toContain('Plugins in container: claude-code-hermit -> hermitd');
+  expect(result.stdout).not.toContain('Project migration complete.');
   expect(f.calls()).not.toContain('install:hermitd-feed');
   expect(fs.readFileSync(path.join(f.home, '.local/bin/hermit'), 'utf8')).toContain('foreign');
   const again = await f.run(); expect(again.exitCode).toBe(0); expect(again.stdout).toContain('Already migrated');
@@ -118,7 +124,7 @@ test('registry entries without agent state are skipped', async () => {
 test('Docker-only host registers projects and reports missing host CLI', async () => {
   const f = fixture(true); const result = await f.run();
   expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
-  expect(result.stdout).toContain('host CLI not installed; run the installer');
+  expect(result.stdout).toContain('Host: hermitd CLI not installed; run the installer.');
   expect(f.calls()).not.toContain('host:remove');
 });
 test('old marketplace removed by hand: new core installs stand in for the deleted registry', async () => {
@@ -129,6 +135,7 @@ test('old marketplace removed by hand: new core installs stand in for the delete
   const result = await f.run();
   expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
   expect(f.calls()).not.toContain('host:remove');
+  expect(result.stdout).toContain('Plugins: none reinstalled, the old marketplace was already removed.');
 });
 test('orphan refusal says when to rerun instead of naming a stop command', async () => {
   const f = fixture();
