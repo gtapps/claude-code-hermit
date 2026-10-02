@@ -3,7 +3,7 @@
 // mid-session control is the relative Shift+Tab cycle — so reaching a specific mode means
 // pressing it and reading the status bar until the session lands there.
 //
-// Detached for the same reason confirm-harness-switch.ts is: the pane cannot re-render
+// Detached because the pane cannot re-render
 // while the Stop hook is still running, so every read here has to happen after it returns.
 
 import { clearPendingCommand, writeSwitchVerify, readPendingCommand } from './lib/harness-command';

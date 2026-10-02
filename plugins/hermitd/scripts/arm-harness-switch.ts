@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { ARG_RE, renderCommand, writePendingCommand, type PendingCommand } from './lib/harness-command';
+import { ARG_RE, renderCommand } from './lib/harness-command';
+import { writeDeferredSwitch, type HarnessRequest } from './lib/harness-mod';
 import { readRuntimeJson } from './lib/runtime';
 
 function refuse(reason: string): never {
@@ -23,14 +24,14 @@ if (!model && !effort) refuse('At least one of --model or --effort is required.'
 const root = path.resolve(hermitDir);
 const runtime = readRuntimeJson(path.join(root, 'state'));
 if (!runtime) refuse('No runtime.json found for this hermit.');
-if (runtime.runtime_mode === 'interactive') refuse('Deferred switches require a tmux resident, not interactive mode.');
-if (typeof runtime.tmux_session !== 'string' || !runtime.tmux_session.trim()) refuse('No resident tmux pane is configured.');
-const pending: PendingCommand = {
-  command: model ? '/model' : '/effort',
-  arg: model ?? effort!,
+const pending: HarnessRequest = {
+  dir: root,
+  commands: [
+    ...(model ? [{ command: '/model', arg: model }] : []),
+    ...(effort ? [{ command: '/effort', arg: effort }] : []),
+  ],
   by: 'terminal',
   requested_at: new Date().toISOString(),
-  ...(model && effort ? { then: { command: '/effort' as const, arg: effort } } : {}),
 };
-if (!writePendingCommand(root, pending)) refuse('Could not write the pending switch.');
-console.log(`At the next idle, the resident will type ${renderCommand(pending)}${pending.then ? ` then ${renderCommand(pending.then)}` : ''}.`);
+writeDeferredSwitch(root, pending);
+console.log(`At the next idle, the resident mod will apply ${pending.commands.map(renderCommand).join(' then ')}.`);

@@ -32,3 +32,8 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           mkdir -p "$RUNNER_TEMP/cfg"
           CLAUDE_CONFIG_DIR="$RUNNER_TEMP/cfg" bash scripts/plugin-validate.sh
+      - name: Test core mod
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p "$RUNNER_TEMP/cfg"
+          CLAUDE_CONFIG_DIR="$RUNNER_TEMP/cfg" claude plugin test plugins/hermitd/mod

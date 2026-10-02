@@ -96,3 +96,8 @@ docker-backup/
 
 # Graphify output
 graphify-out/
+
+# Claude Code generated mod declarations and compiler configuration
+**/.claude-plugin/types/
+plugins/hermitd/tsconfig.json
+plugins/hermitd/mod/tsconfig.json

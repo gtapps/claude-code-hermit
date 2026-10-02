@@ -12,6 +12,7 @@ import type { ChannelEnvelope } from '../channel-envelope';
 export type { ChannelEnvelope };
 
 export interface StageContext {
+  harnessMode?: boolean;
   skipHarnessCommand?: boolean;
   suppressResponderInvoke?: boolean;
   sessionId?: string | null;
@@ -34,6 +35,7 @@ export interface StageContext {
 }
 
 export interface StageResult {
+  harness?: import('../harness-mod').HarnessDecision;
   /** additionalContext to inject. Concatenated with other stages', in stage order. */
   context?: string;
   /**

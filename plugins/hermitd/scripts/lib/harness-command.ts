@@ -127,7 +127,6 @@ export function permissionModeRefusal(arg: string): string | null {
 export type PendingCommand = {
   command: string;
   arg: string | null;
-  then?: { command: '/model' | '/effort'; arg: string };
   by: string;
   reply_to?: { source: string; chat_id: string };
   requested_at: string;
@@ -152,49 +151,6 @@ export const COMMAND_MARKER_TTL_SECS = 3600;
  */
 export const SWITCH_VERIFY_TTL_SECS = 86_400;
 export const SKILL_RELAY_TTL_SECS = 600;
-export const HARNESS_CONFIRM_TIMEOUT_MS = 5_000;
-
-// /advisor has NO entry here on purpose. Upstream: "Enabling or disabling the advisor
-// mid-session does not invalidate your main model's prompt cache" — and live-probed
-// (CC 2.1.240): every argument form, valid (`/advisor opus` → inline "Advisor set to
-// Opus 5") or invalid (`/advisor bogusmodel`, `/advisor haiku`), renders inline with no
-// pane dialog at all. Don't "fix" this omission by adding a matcher for a dialog that
-// does not exist.
-const SWITCH_CONFIRMATION_ANCHORS: Record<string, readonly string[]> = {
-  '/model': [
-    'Switch model?',
-    'This conversation is cached for the current model.',
-  ],
-  '/effort': [
-    'Change effort level?',
-    'This conversation is cached for the current effort level.',
-  ],
-};
-
-/**
- * Match only Claude Code's cached-context confirmation for the delivered switch.
- *
- * Whitespace is collapsed because the warning wraps according to pane width. The
- * target label is deliberately not matched: a stable model alias such as `opus`
- * renders as a release display name such as "Opus 5", and effort levels may expand.
- *
- * Geometry is unnecessary: `capturePane` returns only visible rows, and an
- * answered dialog is erased from the pane within 1.5s (CC 2.1.260, both
- * renderers). Chrome under the modal (queued channel banner, composer,
- * statusLine, mode row, IDE row) therefore cannot be a stale leftover.
- */
-export function isHarnessSwitchConfirmation(command: string, paneContent: string): boolean {
-  const commandAnchors = SWITCH_CONFIRMATION_ANCHORS[command];
-  if (!commandAnchors) return false;
-
-  const collapsed = paneContent.replace(/\s+/g, ' ');
-
-  return commandAnchors.every((anchor) => collapsed.includes(anchor))
-    && collapsed.includes('Your next response will be slower and use more tokens')
-    && collapsed.includes('Yes, switch to')
-    && collapsed.includes('No, go back');
-}
-
 function markerPath(hermitRoot: string): string {
   return path.join(hermitRoot, 'state', 'pending-harness-command.json');
 }
@@ -222,7 +178,7 @@ export function readPendingCommand(hermitRoot: string): PendingCommand | null {
   try {
     const raw = fs.readFileSync(markerPath(hermitRoot), 'utf-8');
     const parsed = JSON.parse(raw) as PendingCommand;
-    if (!parsed || typeof parsed.command !== 'string') return null;
+    if (!parsed || !['/doctor', '/permission-mode'].includes(parsed.command)) return null;
 
     const ts = Date.parse(parsed.requested_at);
     if (Number.isNaN(ts)) return null;

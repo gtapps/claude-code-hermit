@@ -24,7 +24,8 @@ import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dir, '..', '..');
 
-const ROOT_KEYS = new Set(['description', 'hooks']);
+// Claude Code 2.1.287 adds modules: https://code.claude.com/docs/en/plugins/mods/create
+const ROOT_KEYS = new Set(['description', 'hooks', 'modules']);
 const GROUP_KEYS = new Set(['matcher', 'hooks']);
 // Every hook in the fleet is `type: command`, so this is the command surface
 // only. Claude Code's real schema is a discriminated union per `type`; adding

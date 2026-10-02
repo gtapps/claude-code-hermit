@@ -1,2 +1,3 @@
 [test]
 concurrentTestGlob = ["**/*.test.ts"]
+pathIgnorePatterns = ["mod/**"]

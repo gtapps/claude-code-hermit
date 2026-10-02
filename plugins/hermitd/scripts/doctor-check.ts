@@ -33,6 +33,7 @@ import { promptTokensOf, compactibleTokens, isOwnTurn } from './lib/context-sign
 import { readContextSurface } from './lib/context-surface';
 import { expandSessionName } from './lib/tmux';
 import { readJson } from './lib/cli';
+import { MOD_LOADED_FILE } from './lib/harness-mod';
 import { compileCron } from './lib/cron-match';
 import { secondMostRecentMatch } from './lib/backup';
 import { findResident } from './lib/session-registry';
@@ -2083,6 +2084,19 @@ function socketAccepts(socketPath: string, timeoutMs = 2000): Promise<boolean> {
   });
 }
 
+/** A session-scoped load record, not a heartbeat or a watchdog trigger. */
+function checkHarnessMod(p: DoctorPaths = PATHS) {
+  const id = 'harness-mod';
+  const runtime = readRuntimeJson(p.stateDir);
+  if (!runtime) return { id, status: 'ok', detail: 'No resident session yet; chat harness mod loads at the first boot.' };
+  const loaded = readJson(path.join(p.stateDir, MOD_LOADED_FILE));
+  if (typeof runtime.cc_session_id === 'string' && runtime.cc_session_id
+    && loaded?.session_id === runtime.cc_session_id) {
+    return { id, status: 'ok', detail: 'Chat harness mod loaded for the current resident session.' };
+  }
+  return { id, status: 'warn', detail: 'chat harness commands unavailable: the core mod has not loaded for the current resident session.' };
+}
+
 /** Check launch configuration, without claiming that the running session executed it. */
 function checkOverlayHooks(p: DoctorPaths = PATHS) {
   const id = 'overlay-hooks';
@@ -2353,6 +2367,7 @@ async function runAllChecks(p: DoctorPaths = PATHS) {
     checkContextScan(p),
     checkVoiceCarrier(p),
     checkOverlayHooks(p),
+    checkHarnessMod(p),
     checkClassifierDenials(p),
     // Both do outbound I/O behind their own timeouts (channel HTTP calls, the
     // peer socket connect) and share no state, so they run concurrently rather
@@ -2559,7 +2574,7 @@ export {
   checkDockerSecurity, checkReflectLoop, checkScheduler,
   checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRoutineMonitor,
   checkRoutinePrecheck, checkRawSize,
-  checkCredentialExpiry, checkModelPricingKnown, checkMemorySize, checkContextScan, checkVoiceCarrier, checkOverlayHooks, checkClassifierDenials, checkChannelLiveness, checkPeerInbox, checkBackup,
+  checkCredentialExpiry, checkModelPricingKnown, checkMemorySize, checkContextScan, checkVoiceCarrier, checkOverlayHooks, checkHarnessMod, checkClassifierDenials, checkChannelLiveness, checkPeerInbox, checkBackup,
   satisfiesRange, cidrOverlap,
   // Tests build their own paths for a scratch dir; the CLI runs on the argv-derived default.
   resolvePaths,

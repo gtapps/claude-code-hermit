@@ -1,5 +1,6 @@
 {
   "description": "Core hermit guardrails and session lifecycle hooks.",
+  "modules": ["../mod/register.ts"],
   "hooks": {
     "PreToolUse": [
       {
