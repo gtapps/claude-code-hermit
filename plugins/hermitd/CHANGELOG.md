@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.4.9] - 2026-10-02
 
 ### Added
 - `scripts/migrate.sh` migrates all stopped 1.4.8 agents in one Claude config directory before startup, with resumable progress and backups for customized managed files.
