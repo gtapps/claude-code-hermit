@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
-# hermit-scribe
+# hermitd-scribe
 
 Files GitHub issues via a configured GitHub App so they're attributed to a bot identity rather than a personal account. Pure Node stdlib APIs run with Bun; no dependencies, no build step. Maintainer tool.
 
@@ -49,7 +49,7 @@ Set them in your project `.env` (loaded by Docker hermit via `env_file:`) or in 
 
 ## Setup
 
-Run `/hermitd-scribe:hatch` after configuring the env vars above. It appends or version-refreshes the Issue Filing block in your `CLAUDE.md`/`CLAUDE.local.md` and stamps `_hermit_versions["hermit-scribe"]` in `.hermit/config.json`. Re-run hatch after an upgrade to refresh the block.
+Run `/hermitd-scribe:hatch` after configuring the env vars above. It appends or version-refreshes the Issue Filing block in your `CLAUDE.md`/`CLAUDE.local.md` and stamps `_hermit_versions["hermitd-scribe"]` in `.hermit/config.json`. Re-run hatch after an upgrade to refresh the block.
 
 ## Usage
 
@@ -60,11 +60,11 @@ Trigger phrases:
 - `report this to the tracker`
 - `file a GH issue for [description]`
 
-For proposal-backed issues: the skill globs `.hermit/proposals/PROP-NNN-*.md`, reads frontmatter (`id`, `title`, `category`, `session`) and the `## Context` / `## Problem` / `## Proposed Solution` / `## Impact` body sections, then builds a Conventional Commits title (`<type>(<scope>): <title>`, e.g. `feat(homeassistant-hermit): integrate HA History API`). Type is derived from `category` (`bug` → `fix`, `infrastructure`/`investigation` → `chore`, otherwise → `feat`); the recognized scope vocabulary is derived from the keys of `_hermit_versions` in `.hermit/config.json`, scanned against explicit mentions in the proposal text first (`plugins/<slug>/` paths or whole-word slug occurrences), falling back to the lone activated fleet hermit when no explicit target appears, with the `claude-code-` prefix stripped. Scope is omitted when signals are absent or ambiguous. The body is translated to English at the GitHub boundary (technical identifiers, code, and frontmatter are preserved verbatim); a `Filed via hermit-scribe · proposal={id} · session={session}` footer is appended after sanitization.
+For proposal-backed issues: the skill globs `.hermit/proposals/PROP-NNN-*.md`, reads frontmatter (`id`, `title`, `category`, `session`) and the `## Context` / `## Problem` / `## Proposed Solution` / `## Impact` body sections, then builds a Conventional Commits title (`<type>(<scope>): <title>`, e.g. `feat(homeassistant): integrate HA History API`). Type is derived from `category` (`bug` → `fix`, `infrastructure`/`investigation` → `chore`, otherwise → `feat`); the recognized scope vocabulary is derived from the keys of `_hermit_versions` in `.hermit/config.json`, scanned against explicit mentions in the proposal text first (`plugins/<slug>/` paths or whole-word slug occurrences), falling back to the lone activated fleet hermit when no explicit target appears, with the `hermitd-` prefix stripped. Scope is omitted when signals are absent or ambiguous. The body is translated to English at the GitHub boundary (technical identifiers, code, and frontmatter are preserved verbatim); a `Filed via hermit-scribe · proposal={id} · session={session}` footer is appended after sanitization.
 
 For ad-hoc issues: supply title and body directly. The operator's title is passed through verbatim (no CC enforcement); translation and sanitization still apply.
 
-All issues get the `hermit-filed` label. Proposal-backed issues also receive a type label derived from `category` (`bug` → `bug`; `infrastructure`/`investigation` → `chore`; otherwise `enhancement`) and, when a single plugin scope was resolved, a scope label matching the stripped slug (e.g. `homeassistant-hermit`). These labels must already exist on the target repo — unknown ones are silently dropped or auto-created by GitHub, so filing never errors on a missing label.
+All issues get the `hermit-filed` label. Proposal-backed issues also receive a type label derived from `category` (`bug` → `bug`; `infrastructure`/`investigation` → `chore`; otherwise `enhancement`) and, when a single plugin scope was resolved, a scope label matching the stripped slug (e.g. `homeassistant`). These labels must already exist on the target repo — unknown ones are silently dropped or auto-created by GitHub, so filing never errors on a missing label.
 
 ### Dedup
 
@@ -72,7 +72,7 @@ Before filing, the skill runs `--check {id}` automatically. If a matching issue 
 
 ### Privacy sanitization
 
-Before showing the preview, the skill passes the draft through the `issue-sanitizer` subagent. It strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin (`hermitd`, `hermitd-dev`, `hermitd-homeassistant`, `hermitd-fitness`, `hermit-scribe`) or the hermit state tree (`.hermit/...`). Secrets, `.env` content, connection strings, internal hostnames/IPs, and non-public URLs are always stripped even when they look technical. Stripped content is replaced with `<redacted>`.
+Before showing the preview, the skill passes the draft through the `issue-sanitizer` subagent. It strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin (`hermitd`, `hermitd-dev`, `hermitd-homeassistant`, `hermitd-fitness`, `hermitd-scribe`) or the hermit state tree (`.hermit/...`). Secrets, `.env` content, connection strings, internal hostnames/IPs, and non-public URLs are always stripped even when they look technical. Stripped content is replaced with `<redacted>`.
 
 The operator can un-redact specific items during the preview step if a particular value is load-bearing for the issue.
 
@@ -100,7 +100,7 @@ The cleaned title and body are shown to the operator before filing as a single m
 ## Architecture
 
 ```
-hermit-scribe/
+hermitd-scribe/
   ├── agents/
   │     └── issue-sanitizer.md  redacts non-hermit content from draft body
   ├── scripts/
