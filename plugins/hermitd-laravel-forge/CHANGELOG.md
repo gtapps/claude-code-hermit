@@ -1,6 +1,6 @@
 # Changelog — laravel-forge-hermit
 
-## [Unreleased]
+## [0.0.19] - 2026-10-02
 
 ### Changed
 - The plugin is named `hermitd-laravel-forge` in the `hermitd` marketplace, with namespaced skills and core commands updated to match.
