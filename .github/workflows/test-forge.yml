@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/laravel-forge-hermit/**'
+      - 'plugins/hermitd-laravel-forge/**'
       - 'tests/lib/**'
       - '.github/workflows/test-forge.yml'
       - 'package.json'
@@ -12,7 +12,7 @@ on:
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/laravel-forge-hermit/**'
+      - 'plugins/hermitd-laravel-forge/**'
       - 'tests/lib/**'
       - '.github/workflows/test-forge.yml'
       - 'package.json'
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/laravel-forge-hermit
+        working-directory: plugins/hermitd-laravel-forge
     steps:
       - uses: actions/checkout@v4
       # Plugin pins php ^8.5 (composer.json platform) — the runner must match.

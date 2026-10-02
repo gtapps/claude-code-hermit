@@ -33,7 +33,7 @@ A free-text objective does two things: the Verdict answers it ("ready to tag for
 
 ## Step 1 — Establish per-plugin release boundaries
 
-Each plugin versions independently with tags shaped `<slug>--vX.Y.Z`, including `claude-code-hermit--v*`. Never use the single newest repository tag as a global boundary.
+Each plugin versions independently with tags shaped `<slug>--vX.Y.Z`, including `hermitd--v*`. Never use the single newest repository tag as a global boundary.
 
 Enumerate `plugins/*/.claude-plugin/plugin.json`. For each requested plugin:
 
@@ -128,7 +128,7 @@ Runs after Step 3 on the same windows. The audit checks that the changelog tells
 git log --merges --format='%h %s' "$base"..HEAD -- plugins/<slug>/       # "Merge pull request #NNN"
 gh pr view <NNN> --json title,body,headRefName,closingIssuesReferences
 gh issue view <issue> --json title,body                                    # also the <N> in feat/<N>-<slug>
-rg -l -e '#<issue>' -e '<branch-slug>' .claude-code-hermit/proposals/PROP-*.md
+rg -l -e '#<issue>' -e '<branch-slug>' .hermit/proposals/PROP-*.md
 ```
 
 The proposal match is loose (frontmatter has no issue field); "no proposal" is a valid answer, never guess one. Commits that landed without a PR are reviewed from their commit messages. PROP ids may appear in this report (terminal-only) but never travel into a follow-up PR, commit, or CHANGELOG.
@@ -181,7 +181,7 @@ Lead with blocking findings and use this structure:
 ## Release boundaries
 | Plugin | Base tag | Base | HEAD | Commits |
 |--------|----------|------|------|---------|
-| hermit-scribe | hermit-scribe--v0.0.6 | a1b2c3d | e4f5a6b | 4 |
+| hermit-scribe | hermitd-scribe--v0.0.6 | a1b2c3d | e4f5a6b | 4 |
 
 Skipped: <zero-commit or unstructured plugins>
 

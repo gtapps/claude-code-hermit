@@ -1,0 +1,25 @@
+{
+  "name": "hermitd-feed",
+  "version": "0.2.3",
+  "dependencies": [
+    {
+      "name": "hermitd",
+      "version": "^1.4.8"
+    }
+  ],
+  "description": "Scheduled briefs for Hermit from sources you choose, with story tracking, weekly summaries, and source-quality checks.",
+  "author": {
+    "name": "gtapps",
+    "url": "https://github.com/gtapps"
+  },
+  "repository": "https://github.com/gtapps/hermitd",
+  "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-feed",
+  "license": "MIT",
+  "keywords": [
+    "feed",
+    "brief",
+    "rss",
+    "trending",
+    "gtapps"
+  ]
+}

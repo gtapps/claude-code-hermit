@@ -3,24 +3,24 @@ name: Test Docker Build
 # The images operators actually rebuild are the current template and whatever
 # docker-bun-pin.ts converges a legacy Dockerfile into. Neither was ever built
 # in CI, so a template edit shipped unverified and the fleet found out on
-# `hermit-docker update`. Path-filtered: this is a multi-minute network build,
+# `hermitd-docker update`. Path-filtered: this is a multi-minute network build,
 # not something an ordinary core PR should wait on.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'plugins/claude-code-hermit/state-templates/docker/**'
-      - 'plugins/claude-code-hermit/scripts/docker-bun-pin.ts'
-      - 'plugins/claude-code-hermit/scripts/render-docker-templates.ts'
-      - 'plugins/claude-code-hermit/tests/fixtures/Dockerfile.hermit.legacy'
+      - 'plugins/hermitd/state-templates/docker/**'
+      - 'plugins/hermitd/scripts/docker-bun-pin.ts'
+      - 'plugins/hermitd/scripts/render-docker-templates.ts'
+      - 'plugins/hermitd/tests/fixtures/Dockerfile.hermit.legacy'
       - '.github/workflows/test-docker-build.yml'
   pull_request:
     paths:
-      - 'plugins/claude-code-hermit/state-templates/docker/**'
-      - 'plugins/claude-code-hermit/scripts/docker-bun-pin.ts'
-      - 'plugins/claude-code-hermit/scripts/render-docker-templates.ts'
-      - 'plugins/claude-code-hermit/tests/fixtures/Dockerfile.hermit.legacy'
+      - 'plugins/hermitd/state-templates/docker/**'
+      - 'plugins/hermitd/scripts/docker-bun-pin.ts'
+      - 'plugins/hermitd/scripts/render-docker-templates.ts'
+      - 'plugins/hermitd/tests/fixtures/Dockerfile.hermit.legacy'
       - '.github/workflows/test-docker-build.yml'
 
 jobs:
@@ -49,20 +49,20 @@ jobs:
             "agentHookProfile": "strict",
             "networkMode": "bridge",
             "gitIdentityMount": true
-          }' | bun plugins/claude-code-hermit/scripts/render-docker-templates.ts "$PWD/build"
+          }' | bun plugins/hermitd/scripts/render-docker-templates.ts "$PWD/build"
 
       # A pre-1.2.0 deployed Dockerfile put through the real migration script.
       - name: Converge the legacy fixture
         if: matrix.shape == 'converged-legacy'
         run: |
-          mkdir -p build/.claude-code-hermit/state
-          cp plugins/claude-code-hermit/tests/fixtures/Dockerfile.hermit.legacy build/Dockerfile.hermit
-          cp plugins/claude-code-hermit/state-templates/docker/docker-entrypoint.hermit.sh.template \
+          mkdir -p build/.hermit/state
+          cp plugins/hermitd/tests/fixtures/Dockerfile.hermit.legacy build/Dockerfile.hermit
+          cp plugins/hermitd/state-templates/docker/docker-entrypoint.hermit.sh.template \
              build/docker-entrypoint.hermit.sh
           cd build
-          verdict=$(AGENT_DIR="$PWD/.claude-code-hermit" \
-            bun ../plugins/claude-code-hermit/scripts/docker-bun-pin.ts \
-              "$PWD/.claude-code-hermit" 1.4.0 ci-build)
+          verdict=$(AGENT_DIR="$PWD/.hermit" \
+            bun ../plugins/hermitd/scripts/docker-bun-pin.ts \
+              "$PWD/.hermit" 1.4.0 ci-build)
           echo "verdict: $verdict"
           test "$verdict" = "OK|converged"
 

@@ -66,15 +66,15 @@ Skip this step in report-only mode.
 For each `SHIPPED-STRONG` verdict, resolve the proposal ID to a filename. The filename lookup happens before mutation; an ambiguous or missing ID moves into Step 4.
 
 ```bash
-bun plugins/claude-code-hermit/scripts/proposal.ts resolve-id .claude-code-hermit "<PROP-ID>"
+bun plugins/hermitd/scripts/proposal.ts resolve-id .hermit "<PROP-ID>"
 ```
 
 For an unambiguous filename, append the metrics event before patching so regenerated summaries include it:
 
 ```bash
-bun plugins/claude-code-hermit/scripts/proposal.ts event .claude-code-hermit resolved --id="<PROP-ID>"
+bun plugins/hermitd/scripts/proposal.ts event .hermit resolved --id="<PROP-ID>"
 
-bun plugins/claude-code-hermit/scripts/proposal.ts patch .claude-code-hermit <filename> \
+bun plugins/hermitd/scripts/proposal.ts patch .hermit <filename> \
   --set status=resolved --set resolved_date=@now --request-compact --stdin <<'HERMIT_PATCH'
 Decision: Resolved on @now — shipped in <plugin> <version>. <evidence sentence>
 HERMIT_PATCH
@@ -91,7 +91,7 @@ Present `SHIPPED-WEAK` first, then `AGED`. Ask the user in one concise round whe
 
 Stop and wait for the response. Do not interpret the original audit request as approval for these mutations.
 
-Before applying a confirmed choice, read the current matching flow in `plugins/claude-code-hermit/skills/proposal-act/SKILL.md`; that file is the repository contract for proposal status fields, metrics ordering, decision text, and dashboard refresh behavior.
+Before applying a confirmed choice, read the current matching flow in `plugins/hermitd/skills/proposal-act/SKILL.md`; that file is the repository contract for proposal status fields, metrics ordering, decision text, and dashboard refresh behavior.
 
 At minimum, preserve these invariants:
 
@@ -110,7 +110,7 @@ Use this compact shape:
 Proposal queue: <N> open → <M> open
 
 Resolved automatically (<n>)
-  PROP-056 — shipped in claude-code-hermit [Unreleased]: <evidence>
+  PROP-056 — shipped in hermitd [Unreleased]: <evidence>
 
 Confirmed with you (<n>)
   PROP-006 — dismissed

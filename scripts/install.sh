@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# claude-code-hermit bootstrap.
+# hermitd bootstrap.
 #
-#   curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
+#   curl -fsSL https://gtapps.github.io/hermitd/install.sh | bash
 #
 # Provisions what a bare box needs (Claude Code, Bun, tmux), registers the
 # marketplace and installs the plugin at local scope in the current directory.
@@ -19,10 +19,10 @@
 
 set -euo pipefail
 
-MARKETPLACE="gtapps/claude-code-hermit"
-PLUGIN="claude-code-hermit@claude-code-hermit"
-META_URL="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/.claude-plugin/hermit-meta.json"
-DOCS_URL="https://github.com/gtapps/claude-code-hermit#quick-start"
+MARKETPLACE="gtapps/hermitd"
+PLUGIN="hermitd@hermitd"
+META_URL="https://raw.githubusercontent.com/gtapps/hermitd/main/plugins/hermitd/.claude-plugin/hermit-meta.json"
+DOCS_URL="https://github.com/gtapps/hermitd#quick-start"
 
 CLAUDE_WAS_INSTALLED=0   # set when we install Claude Code fresh; drives the closing block
 
@@ -166,7 +166,7 @@ ensure_bun() {
 # ------------------------------------------------------------------- tmux ----
 
 # Best-effort: tmux is only needed for the tmux always-on path. The Docker path
-# and `hermit-start --no-tmux` do not use it, so a box without sudo gets a
+# and `hermitd-start --no-tmux` do not use it, so a box without sudo gets a
 # warning rather than a failed install.
 ensure_tmux() {
   if command -v tmux >/dev/null 2>&1; then
@@ -213,11 +213,11 @@ ensure_tmux() {
 # ------------------------------------------------------------------ plugin ----
 
 install_plugin() {
-  # Anchored to the marketplace-name line ("  > claude-code-hermit"). A bare
-  # substring match also hits the "Source: GitHub (owner/claude-code-hermit)"
+  # Anchored to the marketplace-name line ("  > hermitd"). A bare
+  # substring match also hits the "Source: GitHub (owner/hermitd)"
   # line, so a fork registered under a different marketplace name would skip the
   # add and then fail the install below on an unregistered marketplace id.
-  if claude plugin marketplace list 2>/dev/null | grep -qE 'claude-code-hermit[[:space:]]*$'; then
+  if claude plugin marketplace list 2>/dev/null | grep -qE 'hermitd[[:space:]]*$'; then
     ok "marketplace" "$MARKETPLACE (already registered)"
   else
     work "marketplace" "adding $MARKETPLACE..."
@@ -229,7 +229,7 @@ install_plugin() {
   work "plugin" "installing at local scope..."
   claude plugin install "$PLUGIN" --scope local >/dev/null 2>&1 \
     || die "Plugin install failed. Re-run, or install by hand: claude plugin install $PLUGIN --scope local"
-  ok "plugin" "claude-code-hermit ($(pwd))"
+  ok "plugin" "hermitd ($(pwd))"
 }
 
 # ------------------------------------------------------------ closing block ----
@@ -249,10 +249,10 @@ closing_block() {
   printf '\n'
   rule
 
-  if [ -f ".claude-code-hermit/config.json" ]; then
+  if [ -f ".hermit/config.json" ]; then
     say "Prerequisites set. This folder is already hatched, so update instead:"
     printf '\n'
-    say "    .claude-code-hermit/bin/hermit-update"
+    say "    .hermit/bin/hermitd-update"
     printf '\n'
     rule
     return
@@ -268,7 +268,7 @@ closing_block() {
   if ! has_credentials; then
     say "    claude          # not logged in on this machine? /login first"
   fi
-  say "    claude \"/claude-code-hermit:hatch\""
+  say "    claude \"/hermitd:hatch\""
   printf '\n'
   if [ "$CLAUDE_WAS_INSTALLED" = "1" ]; then
     say "The first reloads your shell so \`claude\` is on PATH."
@@ -304,13 +304,13 @@ hatch_countdown() {
   sleep 1; printf '1…   (Ctrl+C to do it later)\n'
   sleep 1
   trap - INT
-  exec claude "/claude-code-hermit:hatch" </dev/tty
+  exec claude "/hermitd:hatch" </dev/tty
 }
 
 # ------------------------------------------------------------------- main ----
 
 main() {
-  printf '\n  \033[1mclaude-code-hermit\033[0m\n\n'
+  printf '\n  \033[1mhermitd\033[0m\n\n'
 
   detect_platform
   ok "platform" "$PLATFORM"
@@ -321,7 +321,7 @@ main() {
   ensure_tmux
   install_plugin
 
-  if [ ! -f ".claude-code-hermit/config.json" ] && can_launch; then
+  if [ ! -f ".hermit/config.json" ] && can_launch; then
     hatch_countdown
   else
     closing_block

@@ -1,0 +1,137 @@
+{
+  "_hermit_versions": {},
+  "agent_name": null,
+  "language": null,
+  "timezone": null,
+  "escalation": "balanced",
+  "operator_profile": "technical",
+  "voice": {
+    "style": null,
+    "prose": null
+  },
+  "channels": {},
+  "remote": true,
+  "auth_mode": null,
+  "model": "sonnet",
+  "effort": null,
+  "permission_mode": "auto",
+  "tmux_session_name": "hermit-{project_name}",
+  "auto_session": true,
+  "always_on": false,
+  "chrome": false,
+  "push_notifications": true,
+  "ask_gate": true,
+  "routine_max_lateness_minutes": 60,
+  "routines": [
+    {"id": "heartbeat-restart",   "schedule": "0 4 * * *",  "skill": "hermitd:hermit-routines load",        "enabled": true},
+    {"id": "reflect",             "schedule": "0 9 * * *",  "skill": "hermitd:reflect",  "precheck": "reflect", "enabled": true},
+    {"id": "weekly-review",       "schedule": "0 23 * * 0", "skill": "hermitd:weekly-review",                "enabled": true},
+    {"id": "later-check",         "schedule": "5 9 * * *",  "skill": "hermitd:later run", "enabled": true, "precheck": "later"},
+    {"id": "doctor",              "schedule": "10 9 * * 1", "skill": "hermitd:hermit-doctor --maintainer", "model": "haiku", "enabled": true, "precheck": "doctor", "precheck_timeout_s": 120},
+    {"id": "capability-brainstorm", "schedule": "0 10 1 * *", "skill": "hermitd:capability-brainstorm", "enabled": true}
+  ],
+  "monitors": [],
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65",
+    "MAX_THINKING_TOKENS": "10000"
+  },
+  "boot_skill": null,
+  "shutdown_skill": null,
+  "scheduled_checks": [],
+  "docker": {
+    "packages": [],
+    "recommended_plugins": [],
+    "fleet_mesh": false
+  },
+  "tasks": {
+    "handle_in_dm": false,
+    "duties_open_records": true, "queue_nudge_minutes": 60
+  },
+  "heartbeat": {
+    "enabled": true,
+    "every": "30m",
+    "active_hours": {
+      "start": "08:00",
+      "end": "23:00"
+    },
+    "stale_threshold": "2h",
+    "waiting_timeout": null,
+    "clean_recheck_cooldown": "6h",
+    "model": "sonnet"
+  },
+  "quality_gate": {
+    "tier": "budget"
+  },
+  "knowledge": {
+    "raw_retention_days": 14,
+    "compiled_budget_chars": 2500,
+    "working_set_warn": 20,
+    "usage_stale_days": 30,
+    "usage_auto_archive": true,
+    "archive_retention_days": null,
+    "channel_log_enabled": true,
+    "channel_log_retention_days": 90
+  },
+  "watchdog": {
+    "enabled": false,
+    "scheduler_enabled": true,
+    "stale_factor": 2,
+    "wedge_floor": "4h",
+    "escalate_after": 3,
+    "operator_grace": "15m"
+  },
+  "budget": {
+    "daily_usd": null,
+    "weekly_usd": null,
+    "monthly_usd": null,
+    "action": "alert"
+  },
+  "telemetry_export": {
+    "_note": "Operator-directed health/cost export to your own webhook. Inert until you set destination.url. Never sent to plugin authors.",
+    "enabled": false,
+    "destination": { "type": "webhook", "url": null, "bearer_env": "HERMIT_TELEMETRY_TOKEN" },
+    "interval_hours": 24,
+    "redact_operator_text": true
+  },
+  "backup": {
+    "_note": "Scheduled git snapshot of this hermit's own state. Inert until you run `hermitd run backup setup` from a terminal.",
+    "enabled": false,
+    "mode": "workspace",
+    "schedule": "0 3 * * *",
+    "remote": null,
+    "push": true,
+    "include": []
+  },
+  "artifacts": {
+    "dashboard": true,
+    "proposals": true,
+    "weekly_review": false,
+    "publish_authorized": null,
+    "backend": "claude"
+  },
+  "context_hygiene": {
+    "clear": {
+      "enabled": true,
+      "quiet": "1h",
+      "max_age": "24h",
+      "min_tokens": 20000
+    },
+    "compact": {
+      "enabled": true,
+      "min_context_tokens": 100000,
+      "min_interval": "4h"
+    }
+  },
+  "reflection": {
+    "graduation_min_sessions": 1
+  },
+  "routine_wake_lint": {
+    "max_windows": 6
+  },
+  "doctor": {
+    "routine_cost_floor_usd": 2
+  },
+  "storage_drift": {
+    "ignore": []
+  }
+}

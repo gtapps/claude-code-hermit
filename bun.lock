@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "claude-code-hermit-monorepo",
+      "name": "hermitd-monorepo",
       "devDependencies": {
         "@types/bun": "~1.4.0",
         "fast-check": "^4.1.0",

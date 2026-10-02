@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/claude-code-fitness-hermit/**'
+      - 'plugins/hermitd-fitness/**'
       - 'tests/lib/**'
       - '.github/workflows/test-fitness.yml'
       - 'package.json'
@@ -12,7 +12,7 @@ on:
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/claude-code-fitness-hermit/**'
+      - 'plugins/hermitd-fitness/**'
       - 'tests/lib/**'
       - '.github/workflows/test-fitness.yml'
       - 'package.json'
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/claude-code-fitness-hermit
+        working-directory: plugins/hermitd-fitness
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

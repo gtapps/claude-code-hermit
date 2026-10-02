@@ -1,5 +1,5 @@
 // Cross-plugin guard for the hook stdin contract stated in
-// plugins/claude-code-hermit/scripts/lib/hook-input.ts: every hook consumes
+// plugins/hermitd/scripts/lib/hook-input.ts: every hook consumes
 // stdin to completion even past its size cap, and each hook has ONE declared
 // fail direction for input it cannot parse.
 //
@@ -44,28 +44,28 @@ const BENIGN_EDIT = { tool_name: 'Edit', tool_input: { file_path: 'scratch.txt' 
 // (hooks/mcp-safety-gate.ts fail() at :79-88, non-object check at :114).
 // Changing a value here is a deliberate contract change.
 const SPECS: Spec[] = [
-  { name: 'ha/cli-approval', script: 'plugins/claude-code-homeassistant-hermit/hooks/cli-approval.ts', benign: BASH_LS, failExit: 2 },
+  { name: 'ha/cli-approval', script: 'plugins/hermitd-homeassistant/hooks/cli-approval.ts', benign: BASH_LS, failExit: 2 },
   {
     name: 'core/pause-gate',
-    script: 'plugins/claude-code-hermit/scripts/pause-gate.ts',
+    script: 'plugins/hermitd/scripts/pause-gate.ts',
     benign: BASH_LS,
     failExit: 0, // unpaused: denyIfPaused() returns, runHook exits 0
   },
   {
     name: 'core/ask-gate',
-    script: 'plugins/claude-code-hermit/scripts/ask-gate.ts',
+    script: 'plugins/hermitd/scripts/ask-gate.ts',
     benign: BASH_LS,
     failExit: 0,
   },
   {
     name: 'core/cache-edit-guard',
-    script: 'plugins/claude-code-hermit/scripts/cache-edit-guard.ts',
+    script: 'plugins/hermitd/scripts/cache-edit-guard.ts',
     benign: BENIGN_EDIT,
     failExit: 0,
   },
   {
     name: 'core/artifact-backend-guard',
-    script: 'plugins/claude-code-hermit/scripts/artifact-backend-guard.ts',
+    script: 'plugins/hermitd/scripts/artifact-backend-guard.ts',
     // Bash, not Artifact: the guard returns on any non-Artifact tool_name, so
     // the benign case stays independent of the sandbox's artifacts.backend.
     benign: BASH_LS,
@@ -73,7 +73,7 @@ const SPECS: Spec[] = [
   },
   {
     name: 'core/helper-report-relay',
-    script: 'plugins/claude-code-hermit/scripts/helper-report-relay.ts',
+    script: 'plugins/hermitd/scripts/helper-report-relay.ts',
     // Refuses (exit 2) only a readable placeholder it cannot resolve; a reply
     // payload it cannot read passes through for the PostToolUse alarm.
     benign: { hook_event_name: 'PreToolUse', tool_name: 'mcp__discord__reply', tool_input: { chat_id: '1', text: 'hello' } },
@@ -81,7 +81,7 @@ const SPECS: Spec[] = [
   },
   {
     name: 'core/settings-gate',
-    script: 'plugins/claude-code-hermit/scripts/settings-gate.ts',
+    script: 'plugins/hermitd/scripts/settings-gate.ts',
     benign: BASH_LS,
     // 0: oversized stdin raises a native ask (exit 0 + JSON) rather than a
     // deny. What this corpus pins is that the oversize path still drains.
@@ -89,7 +89,7 @@ const SPECS: Spec[] = [
   },
   {
     name: 'core/stop-failure-stamp',
-    script: 'plugins/claude-code-hermit/scripts/stop-failure-stamp.ts',
+    script: 'plugins/hermitd/scripts/stop-failure-stamp.ts',
     // A StopFailure payload, not a tool call: this hook fires at turn end. The
     // sandbox cwd has no hermit folder, so the stamp write fails open and the
     // benign case stays independent of the dev box's own state dir.
@@ -103,19 +103,19 @@ const SPECS: Spec[] = [
   },
   {
     name: 'dev/git-push-guard',
-    script: 'plugins/claude-code-dev-hermit/scripts/git-push-guard.ts',
+    script: 'plugins/hermitd-dev/scripts/git-push-guard.ts',
     benign: BASH_LS,
     failExit: 0,
   },
   {
     name: 'dev/worktree-boundary-guard',
-    script: 'plugins/claude-code-dev-hermit/scripts/worktree-boundary-guard.ts',
+    script: 'plugins/hermitd-dev/scripts/worktree-boundary-guard.ts',
     benign: BENIGN_EDIT,
     failExit: 0,
   },
   {
     name: 'ha/mcp-safety-gate',
-    script: 'plugins/claude-code-homeassistant-hermit/hooks/mcp-safety-gate.ts',
+    script: 'plugins/hermitd-homeassistant/hooks/mcp-safety-gate.ts',
     // A read-only tool is allowed before any entity/config resolution, so the
     // benign case stays independent of the machine's HA configuration.
     benign: { tool_name: 'mcp__homeassistant__GetDateTime', tool_input: {} },
@@ -123,13 +123,13 @@ const SPECS: Spec[] = [
   },
   {
     name: 'ha/curl-host-gate',
-    script: 'plugins/claude-code-homeassistant-hermit/hooks/curl-host-gate.ts',
+    script: 'plugins/hermitd-homeassistant/hooks/curl-host-gate.ts',
     benign: BASH_LS,
     failExit: 0,
   },
   {
     name: 'feed/fetch-guard',
-    script: 'plugins/feed-hermit/hooks/fetch-guard.ts',
+    script: 'plugins/hermitd-feed/hooks/fetch-guard.ts',
     // No feed-sources.md in the sandbox cwd → the allowlist read fails open.
     benign: { tool_name: 'WebFetch', tool_input: { url: 'https://example.com/x' } },
     failExit: 0,
@@ -238,7 +238,7 @@ for (const spec of SPECS) {
 // off, but the pipe still has to be drained or the writer takes SIGPIPE.
 test('dev/worktree-boundary-guard drains stdin even with WORKTREE_GUARD=off', async () => {
   const r = await feed(
-    'plugins/claude-code-dev-hermit/scripts/worktree-boundary-guard.ts',
+    'plugins/hermitd-dev/scripts/worktree-boundary-guard.ts',
     payloadFiles.get(`oversize ${MAX_HOOK_STDIN * 2} bytes, unparseable`)!,
     { WORKTREE_GUARD: 'off' },
   );

@@ -4,5 +4,5 @@ contact_links:
     url: https://discord.gg/54sJqAxhUh
     about: Install help, always-on ops, plugin authoring, and design discussion
   - name: 📖 Documentation
-    url: https://github.com/gtapps/claude-code-hermit#documentation
+    url: https://github.com/gtapps/hermitd#documentation
     about: Setup guides, always-on operations, security, and cost

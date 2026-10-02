@@ -76,31 +76,31 @@ jobs:
       # also run concurrently via bunfig.toml, so keep the worker count bounded.
       # --timeout stays at 45s as headroom for the in-test
       # Date.now() poll deadlines (harness-command-delivery, proc-survivor,
-      # hermit-stop) that --timeout does not itself extend.
+      # hermitd-stop) that --timeout does not itself extend.
       - name: Core suite
         if: '!cancelled()'
         run: bun test --parallel=2 --timeout=45000
-        working-directory: plugins/claude-code-hermit
+        working-directory: plugins/hermitd
       - name: Home Assistant suite
         if: '!cancelled()'
         run: bun test --timeout=45000
-        working-directory: plugins/claude-code-homeassistant-hermit
+        working-directory: plugins/hermitd-homeassistant
       - name: Feed suite
         if: '!cancelled()'
         run: bun test --timeout=45000
-        working-directory: plugins/feed-hermit
+        working-directory: plugins/hermitd-feed
       - name: Dev suite
         if: '!cancelled()'
         run: bash tests/run-all.sh
-        working-directory: plugins/claude-code-dev-hermit
+        working-directory: plugins/hermitd-dev
       - name: Fitness suite
         if: '!cancelled()'
         run: bash tests/run-all.sh
-        working-directory: plugins/claude-code-fitness-hermit
+        working-directory: plugins/hermitd-fitness
       - name: Scribe suite
         if: '!cancelled()'
         run: bash tests/run-all.sh
-        working-directory: plugins/hermit-scribe
-      # laravel-forge-hermit is excluded: tests/run-all.sh shells out to composer
+        working-directory: plugins/hermitd-scribe
+      # hermitd-laravel-forge is excluded: tests/run-all.sh shells out to composer
       # and php, neither reliably present on a macOS runner. Adding a PHP
       # toolchain here is a separate decision.

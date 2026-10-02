@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/hermit-scribe/**'
+      - 'plugins/hermitd-scribe/**'
       - '.github/workflows/test-scribe.yml'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/hermit-scribe/**'
+      - 'plugins/hermitd-scribe/**'
       - '.github/workflows/test-scribe.yml'
       - 'package.json'
       - 'bun.lock'
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/hermit-scribe
+        working-directory: plugins/hermitd-scribe
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

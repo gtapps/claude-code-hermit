@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/claude-code-dev-hermit/**'
+      - 'plugins/hermitd-dev/**'
       - 'tests/lib/**'
       - '.github/workflows/test-dev.yml'
       - 'package.json'
@@ -12,7 +12,7 @@ on:
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/claude-code-dev-hermit/**'
+      - 'plugins/hermitd-dev/**'
       - 'tests/lib/**'
       - '.github/workflows/test-dev.yml'
       - 'package.json'
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/claude-code-dev-hermit
+        working-directory: plugins/hermitd-dev
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

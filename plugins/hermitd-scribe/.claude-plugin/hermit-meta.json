@@ -1,0 +1,6 @@
+{
+  "required_core_version": ">=1.4.7",
+  "requires": {
+    "hermitd": ">=1.4.7"
+  }
+}

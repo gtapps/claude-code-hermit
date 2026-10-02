@@ -1,0 +1,26 @@
+{
+  "name": "hermitd-laravel-forge",
+  "version": "0.0.18",
+  "description": "Manage Laravel Forge servers, sites, deployments, and logs with Hermit, with approval before changes.",
+  "author": {
+    "name": "gtapps",
+    "url": "https://github.com/gtapps"
+  },
+  "repository": "https://github.com/gtapps/hermitd",
+  "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-laravel-forge",
+  "license": "MIT",
+  "keywords": [
+    "laravel",
+    "forge",
+    "deployment",
+    "devops",
+    "php",
+    "gtapps"
+  ],
+  "dependencies": [
+    {
+      "name": "hermitd",
+      "version": "^1.4.7"
+    }
+  ]
+}

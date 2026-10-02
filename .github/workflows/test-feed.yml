@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'plugins/feed-hermit/**'
+      - 'plugins/hermitd-feed/**'
       - 'tests/lib/**'
       - '.github/workflows/test-feed.yml'
       - 'package.json'
@@ -12,7 +12,7 @@ on:
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/feed-hermit/**'
+      - 'plugins/hermitd-feed/**'
       - 'tests/lib/**'
       - '.github/workflows/test-feed.yml'
       - 'package.json'
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/feed-hermit
+        working-directory: plugins/hermitd-feed
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

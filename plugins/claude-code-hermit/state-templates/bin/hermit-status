@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# Read-only status, resolved from the installed core.
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR/../.."
-exec "$SCRIPT_DIR/hermit-run" hermit-status "$@"

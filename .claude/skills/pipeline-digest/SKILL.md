@@ -12,7 +12,7 @@ Delta-gated wrapper over the pipeline facts `/release-status` reports in full. A
 ### 1. Collect
 
 ```bash
-bun .claude/skills/pipeline-digest/scripts/digest.ts .claude-code-hermit
+bun .claude/skills/pipeline-digest/scripts/digest.ts .hermit
 ```
 
 Run from the repo root. Two possible outputs:
@@ -25,17 +25,17 @@ Run from the repo root. Two possible outputs:
 Print the digest body in the conversation. Then send it to the operator:
 
 ```bash
-.claude-code-hermit/bin/hermit-run channel-send .claude-code-hermit --notice
+.hermit/bin/hermitd-run channel-send .hermit --notice
 ```
 
-with `{"maintainer": "<the digest, channel-voiced>"}` on stdin. The `hermit-run` dispatcher resolves the installed plugin itself — do not try to derive a plugin root from this skill's Base directory, which points at `.claude/`, not the plugin.
+with `{"maintainer": "<the digest, channel-voiced>"}` on stdin. The `hermitd-run` dispatcher resolves the installed plugin itself — do not try to derive a plugin root from this skill's Base directory, which points at `.claude/`, not the plugin.
 
 Channel voice: plain language, no file paths, no slash commands, no cron strings. Plugin names and versions are fine — the maintainer chat is the technical audience. Lead with what the operator can act on.
 
 ### 3. Commit the hash
 
 ```bash
-bun .claude/skills/pipeline-digest/scripts/digest.ts .claude-code-hermit commit <hash>
+bun .claude/skills/pipeline-digest/scripts/digest.ts .hermit commit <hash>
 ```
 
 Commit **only when the digest reached the operator, or when there was nobody to send it to.** Read the JSON on stdout — the exit code alone is not enough, because the script exits 1 whenever `delivered` is false, `no_channel` included:
@@ -55,7 +55,7 @@ A plain contributor checkout with no hermit state directory is fine: the digest 
 Independent of steps 1–3: runs whether the pipeline digest itself was `CHANGED` or `NOCHANGE`, since a merge can close a proposal without moving any pipeline fact.
 
 ```bash
-LAST=$(cat .claude-code-hermit/state/proposal-reconcile-sha.txt 2>/dev/null || echo "")
+LAST=$(cat .hermit/state/proposal-reconcile-sha.txt 2>/dev/null || echo "")
 NOW=$(git rev-parse HEAD)
 [ "$LAST" = "$NOW" ] && echo "SKIP|unchanged" || echo "RECONCILE|$NOW"
 ```
@@ -68,18 +68,18 @@ On `RECONCILE|<sha>`, run the collector:
 bun .claude/skills/stale-proposals/scripts/collect-evidence.ts --status proposed,deferred,accepted
 ```
 
-`NONE|no-open-proposals` — write `<sha>` to `.claude-code-hermit/state/proposal-reconcile-sha.txt` and stop.
+`NONE|no-open-proposals` — write `<sha>` to `.hermit/state/proposal-reconcile-sha.txt` and stop.
 
 Otherwise, dispatch a `general-purpose` subagent at **`model: "sonnet"`** — the matching step needs real judgment (partial-delivery detection, same-day evidence ordering, substance matching across a renamed thing), not a checklist, and a wrong strong match silently closes live work. Give it `stale-proposals/SKILL.md`'s Step 2 contract verbatim with the bundle path from the collector above, then follow that skill's Step 2b (completeness check) and Step 3 (auto-apply `SHIPPED-STRONG` matches) exactly as written there.
 
 For any `SHIPPED-WEAK` / `AGED` verdict: never use `AskUserQuestion` here — this routine fires unattended, with nobody watching to answer it. Instead, for each one, queue a plain yes/no bounded ask:
 
 ```bash
-bun plugins/claude-code-hermit/scripts/proposal.ts queue-micro .claude-code-hermit <<'HERMIT_MP'
+bun plugins/hermitd/scripts/proposal.ts queue-micro .hermit <<'HERMIT_MP'
 {"tier":1,"question":"<summarize the verdict's evidence and gap in one sentence>. Close it as resolved anyway?","proposal_id":"<PROP-ID>"}
 HERMIT_MP
 ```
 
 so the operator can answer later from any channel-reachable turn — resolving one of these later patches the proposal to `status=resolved` (mirroring `stale-proposals/SKILL.md` Step 3) if the answer is yes, and leaves it untouched if no.
 
-Send one channel notice summarizing what changed (auto-resolved count, queued-question count) — fold it into the same notice as the pipeline digest itself when both fired this run, or send it alone when the digest was `NOCHANGE`. Then write `<sha>` to `.claude-code-hermit/state/proposal-reconcile-sha.txt`.
+Send one channel notice summarizing what changed (auto-resolved count, queued-question count) — fold it into the same notice as the pipeline digest itself when both fired this run, or send it alone when the digest was `NOCHANGE`. Then write `<sha>` to `.hermit/state/proposal-reconcile-sha.txt`.

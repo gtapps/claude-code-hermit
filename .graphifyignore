@@ -1,4 +1,4 @@
 # Keep the monorepo graph focused on first-party architecture. Forge's vendored
 # dependencies remain available in its plugin-level graph when dependency detail
 # is useful.
-/plugins/laravel-forge-hermit/php/vendor/
+/plugins/hermitd-laravel-forge/php/vendor/

@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-hermit",
+  "name": "hermitd",
   "owner": {
     "name": "gtapps"
   },
@@ -8,8 +8,8 @@
   },
   "plugins": [
     {
-      "name": "claude-code-hermit",
-      "source": "./plugins/claude-code-hermit",
+      "name": "hermitd",
+      "source": "./plugins/hermitd",
       "description": "Your own local Claude Tag, in the Claude app, Discord, Telegram, or a custom Claude Code channel.",
       "version": "1.4.8",
       "category": "productivity",
@@ -18,8 +18,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "always-on",
         "assistant",
@@ -29,8 +29,8 @@
       ]
     },
     {
-      "name": "claude-code-dev-hermit",
-      "source": "./plugins/claude-code-dev-hermit",
+      "name": "hermitd-dev",
+      "source": "./plugins/hermitd-dev",
       "description": "Git safeguards, debugging, and merge-conflict resolution for your Hermit.",
       "version": "0.4.18",
       "category": "development",
@@ -39,8 +39,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/claude-code-dev-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-dev",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "development",
         "git-safety",
@@ -49,8 +49,8 @@
       ]
     },
     {
-      "name": "claude-code-homeassistant-hermit",
-      "source": "./plugins/claude-code-homeassistant-hermit",
+      "name": "hermitd-homeassistant",
+      "source": "./plugins/hermitd-homeassistant",
       "description": "Build, manage, monitor, and troubleshoot your Home Assistant setup with Hermit.",
       "version": "0.4.19",
       "category": "home-automation",
@@ -59,8 +59,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/claude-code-homeassistant-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-homeassistant",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "home-assistant",
         "automation",
@@ -69,8 +69,8 @@
       ]
     },
     {
-      "name": "claude-code-fitness-hermit",
-      "source": "./plugins/claude-code-fitness-hermit",
+      "name": "hermitd-fitness",
+      "source": "./plugins/hermitd-fitness",
       "description": "Fitness coaching for Hermit, with read-only Strava access, activity analysis, training plans, and recovery flags.",
       "version": "0.2.3",
       "category": "fitness",
@@ -79,8 +79,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/claude-code-fitness-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-fitness",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "fitness",
         "strava",
@@ -90,8 +90,8 @@
       ]
     },
     {
-      "name": "feed-hermit",
-      "source": "./plugins/feed-hermit",
+      "name": "hermitd-feed",
+      "source": "./plugins/hermitd-feed",
       "description": "Scheduled briefs for Hermit from sources you choose, with story tracking, weekly summaries, and source-quality checks.",
       "version": "0.2.3",
       "category": "productivity",
@@ -100,8 +100,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/feed-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-feed",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "feed",
         "brief",
@@ -111,8 +111,8 @@
       ]
     },
     {
-      "name": "laravel-forge-hermit",
-      "source": "./plugins/laravel-forge-hermit",
+      "name": "hermitd-laravel-forge",
+      "source": "./plugins/hermitd-laravel-forge",
       "description": "Manage Laravel Forge servers, sites, deployments, and logs with Hermit, with approval before changes.",
       "version": "0.0.18",
       "category": "development",
@@ -121,8 +121,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/laravel-forge-hermit",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-laravel-forge",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "laravel",
         "forge",
@@ -133,8 +133,8 @@
       ]
     },
     {
-      "name": "hermit-scribe",
-      "source": "./plugins/hermit-scribe",
+      "name": "hermitd-scribe",
+      "source": "./plugins/hermitd-scribe",
       "description": "A GitHub App Bot for Hermit that turns proposals and reports into issues, with privacy checks and approval before publishing.",
       "version": "0.1.7",
       "category": "maintainer",
@@ -143,8 +143,8 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/hermit-scribe",
-      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "homepage": "https://github.com/gtapps/hermitd/tree/main/plugins/hermitd-scribe",
+      "repository": "https://github.com/gtapps/hermitd",
       "keywords": [
         "github",
         "issues",

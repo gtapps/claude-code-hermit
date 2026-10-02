@@ -12,7 +12,7 @@ Delta-gated wrapper over the pipeline facts `/release-status` reports in full. A
 ### 1. Collect
 
 ```bash
-bun .agents/skills/pipeline-digest/scripts/digest.ts .claude-code-hermit
+bun .agents/skills/pipeline-digest/scripts/digest.ts .hermit
 ```
 
 Run from the repo root. Two possible outputs:
@@ -25,17 +25,17 @@ Run from the repo root. Two possible outputs:
 Print the digest body in the conversation. Then send it to the operator:
 
 ```bash
-.claude-code-hermit/bin/hermit-run channel-send .claude-code-hermit --notice
+.hermit/bin/hermitd-run channel-send .hermit --notice
 ```
 
-with `{"maintainer": "<the digest, channel-voiced>"}` on stdin. The `hermit-run` dispatcher resolves the installed plugin itself — do not try to derive a plugin root from this skill's Base directory, which points at `.agents/`, not the plugin.
+with `{"maintainer": "<the digest, channel-voiced>"}` on stdin. The `hermitd-run` dispatcher resolves the installed plugin itself — do not try to derive a plugin root from this skill's Base directory, which points at `.agents/`, not the plugin.
 
 Channel voice: plain language, no file paths, no slash commands, no cron strings. Plugin names and versions are fine — the maintainer chat is the technical audience. Lead with what the operator can act on.
 
 ### 3. Commit the hash
 
 ```bash
-bun .agents/skills/pipeline-digest/scripts/digest.ts .claude-code-hermit commit <hash>
+bun .agents/skills/pipeline-digest/scripts/digest.ts .hermit commit <hash>
 ```
 
 Commit **only when the digest reached the operator, or when there was nobody to send it to.** Read the JSON on stdout — the exit code alone is not enough, because the script exits 1 whenever `delivered` is false, `no_channel` included:

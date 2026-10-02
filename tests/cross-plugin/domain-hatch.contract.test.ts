@@ -14,8 +14,8 @@ import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { extractSiblingMarker, closingMarkerFor } from '../../plugins/claude-code-hermit/scripts/evolve-plan';
-import { isModelInvocationDisabled } from '../../plugins/claude-code-hermit/tests/helpers/skill-frontmatter';
+import { extractSiblingMarker, closingMarkerFor } from '../../plugins/hermitd/scripts/evolve-plan';
+import { isModelInvocationDisabled } from '../../plugins/hermitd/tests/helpers/skill-frontmatter';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..');
 const PLUGINS_DIR = path.join(REPO_ROOT, 'plugins');
@@ -32,13 +32,13 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // A plugin is in scope when it has a hatch, declares a core dependency, and
 // that hatch actually does target routing. The first two conditions alone would
-// pull in hermit-scribe, which declares the dependency but carries none of the
+// pull in hermitd-scribe, which declares the dependency but carries none of the
 // target-writing protocol (it only reads the target through preflight, never
 // resolves or stamps it). Its read-only use is checked separately below.
 function pluginSlugs(): string[] {
   return fs
     .readdirSync(PLUGINS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name !== 'claude-code-hermit')
+    .filter((d) => d.isDirectory() && d.name !== 'hermitd')
     .map((d) => d.name);
 }
 
@@ -54,7 +54,7 @@ function discover(): DomainHatch[] {
       const meta = (() => { try { return JSON.parse(fs.readFileSync(p.meta, 'utf-8')); } catch { return null; } })();
       return { slug: p.slug, file: p.file, meta, text: fs.readFileSync(p.file, 'utf-8') };
     })
-    .filter((p) => Boolean(p.meta?.required_core_version) && p.slug !== 'hermit-scribe' && p.text.includes('domain-hatch'))
+    .filter((p) => Boolean(p.meta?.required_core_version) && p.slug !== 'hermitd-scribe' && p.text.includes('domain-hatch'))
     .map(({ slug, file, text }) => ({ slug, file, text }))
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
@@ -64,14 +64,14 @@ const HATCHES = discover();
 describe('discovery', () => {
   // Set equality by name, not a count floor: a count stays green when a sixth
   // plugin ships and a hatch is later rewritten to stop invoking the protocol
-  // — the exact drift class this file exists to prevent. hermit-scribe is the
+  // — the exact drift class this file exists to prevent. hermitd-scribe is the
   // one named exemption (it declares the floor but only reads the target,
   // never resolves or stamps it).
   test('finds the domain hatches that run the shared protocol', () => {
     const expected = pluginSlugs()
       .filter(
         (slug) =>
-          slug !== 'hermit-scribe' &&
+          slug !== 'hermitd-scribe' &&
           fs.existsSync(path.join(PLUGINS_DIR, slug, 'skills', 'hatch', 'SKILL.md')) &&
           fs.existsSync(path.join(PLUGINS_DIR, slug, '.claude-plugin', 'hermit-meta.json')),
       )
@@ -80,8 +80,8 @@ describe('discovery', () => {
   });
 
   test('scribe reads the shared target without resolving or stamping it', () => {
-    const text = fs.readFileSync(path.join(PLUGINS_DIR, 'hermit-scribe/skills/hatch/SKILL.md'), 'utf8');
-    expect(text).toContain('domain-hatch preflight hermit-scribe');
+    const text = fs.readFileSync(path.join(PLUGINS_DIR, 'hermitd-scribe/skills/hatch/SKILL.md'), 'utf8');
+    expect(text).toContain('domain-hatch preflight hermitd-scribe');
     expect(text).toContain('`target_file` from step 1.5');
     expect(text).not.toContain('hatch-options.json');
     expect(text).not.toContain('domain-hatch ensure-target');
@@ -89,17 +89,17 @@ describe('discovery', () => {
   });
 
   test('never includes core, which is not a consumer of its own protocol', () => {
-    expect(HATCHES.map((h) => h.slug)).not.toContain('claude-code-hermit');
+    expect(HATCHES.map((h) => h.slug)).not.toContain('hermitd');
   });
 });
 
 for (const { slug, text } of HATCHES) {
   describe(`${slug}:hatch`, () => {
-    test('reaches core through bin/hermit-run, not a relative path', () => {
-      expect(text).toContain('.claude-code-hermit/bin/hermit-run domain-hatch');
+    test('reaches core through bin/hermitd-run, not a relative path', () => {
+      expect(text).toContain('.hermit/bin/hermitd-run domain-hatch');
       // A domain plugin's ${CLAUDE_PLUGIN_ROOT} is <cache>/<mp>/<plugin>/<version>/,
-      // so no static ../claude-code-hermit/... path resolves from one.
-      expect(text).not.toContain('../claude-code-hermit/scripts');
+      // so no static ../hermitd/... path resolves from one.
+      expect(text).not.toContain('../hermitd/scripts');
     });
 
     // The live bug this whole change exists for: four hatches checked a floor
@@ -111,7 +111,7 @@ for (const { slug, text } of HATCHES) {
     // it drifts from the manifest that actually declares it.
     test('states no hardcoded core version floor', () => {
       const lines = text.split('\n').filter((l) =>
-        /(?:base hermit|core hermit|claude-code-hermit|_hermit_versions)/i.test(l),
+        /(?:base hermit|core hermit|hermitd|_hermit_versions)/i.test(l),
       );
       for (const line of lines) {
         expect(line).not.toMatch(/(?:requires|earlier than|less than|below)\s+`?≥?>?=?\s*\d+\.\d+\.\d+/i);
@@ -218,7 +218,7 @@ for (const { slug, text } of HATCHES) {
 }
 
 // The three places a plugin declares its core floor: `required_core_version`
-// and `requires["claude-code-hermit"]` in hermit-meta.json, and the resolver's
+// and `requires["hermitd"]` in hermit-meta.json, and the resolver's
 // `dependencies` entry in plugin.json. Relocated from core's
 // hooks.contract.test.ts (which never fires on a domain-manifest-only PR under
 // the per-plugin path filters); the /bump-core-req skill and the
@@ -251,10 +251,10 @@ describe('core-floor version triple', () => {
 
       const floor = meta.required_core_version as string;
       expect(floor).toMatch(/^>=\d+\.\d+\.\d+$/);
-      expect(meta.requires?.['claude-code-hermit']).toBe(floor);
+      expect(meta.requires?.['hermitd']).toBe(floor);
 
       const dep = (pj.dependencies ?? []).find(
-        (d: { name: string; version: string }) => d.name === 'claude-code-hermit',
+        (d: { name: string; version: string }) => d.name === 'hermitd',
       );
       // The dep carries whatever range operator its plugin uses (`^` today;
       // /bump-core-req preserves `^`, `~`, `>=`, or exact) — the invariant is
@@ -266,7 +266,7 @@ describe('core-floor version triple', () => {
 });
 
 describe('core side of the contract', () => {
-  const coreScripts = path.join(PLUGINS_DIR, 'claude-code-hermit', 'scripts');
+  const coreScripts = path.join(PLUGINS_DIR, 'hermitd', 'scripts');
 
   test('the script the hatches invoke exists', () => {
     expect(fs.existsSync(path.join(coreScripts, 'domain-hatch.ts'))).toBe(true);
@@ -275,24 +275,24 @@ describe('core side of the contract', () => {
   test('each verb is granted separately, never as one wildcard', () => {
     const applySettings = fs.readFileSync(path.join(coreScripts, 'apply-settings.ts'), 'utf-8');
     for (const verb of ['preflight', 'ensure-target', 'sync-block']) {
-      expect(applySettings).toContain(`bin/hermit-run domain-hatch ${verb} *`);
+      expect(applySettings).toContain(`bin/hermitd-run domain-hatch ${verb} *`);
     }
     // A bare `domain-hatch *` would hand every caller the two mutating verbs.
-    expect(applySettings).not.toContain('bin/hermit-run domain-hatch *');
+    expect(applySettings).not.toContain('bin/hermitd-run domain-hatch *');
   });
 
   // apply-settings.ts is the single owner of the literal entries; hatch carries
   // only the rationale for why they exist. Asserting the entries twice would
   // reintroduce the duplication the permissions single-owner change removed.
   test('hatch SKILL.md explains the domain-hatch route without re-listing it', () => {
-    const hatch = fs.readFileSync(path.join(PLUGINS_DIR, 'claude-code-hermit', 'skills', 'hatch', 'SKILL.md'), 'utf-8');
-    expect(hatch).toContain('hermit-run domain-hatch');
-    expect(hatch).not.toContain('"Bash(.claude-code-hermit/bin/hermit-run domain-hatch');
+    const hatch = fs.readFileSync(path.join(PLUGINS_DIR, 'hermitd', 'skills', 'hatch', 'SKILL.md'), 'utf-8');
+    expect(hatch).toContain('hermitd-run domain-hatch');
+    expect(hatch).not.toContain('"Bash(.hermit/bin/hermitd-run domain-hatch');
   });
 
   test('core hatch keys "already initialized" on config.json', () => {
-    const hatch = fs.readFileSync(path.join(PLUGINS_DIR, 'claude-code-hermit', 'skills', 'hatch', 'SKILL.md'), 'utf-8');
-    expect(hatch).toContain('.claude-code-hermit/config.json');
+    const hatch = fs.readFileSync(path.join(PLUGINS_DIR, 'hermitd', 'skills', 'hatch', 'SKILL.md'), 'utf-8');
+    expect(hatch).toContain('.hermit/config.json');
     expect(hatch).toContain('already initialized');
   });
 
@@ -306,12 +306,12 @@ describe('core side of the contract', () => {
 
 // Only the cross-plugin half lives here. The core-side inventory (which of
 // core's own skills carry the flag) is asserted exactly, not as a subset, by
-// plugins/claude-code-hermit/tests/contracts.test.ts § model-invocable
+// plugins/hermitd/tests/contracts.test.ts § model-invocable
 // inventory — and this workflow's path filters do not even watch core's
 // non-hatch skill dirs, so a copy here would never fire on an edit to them.
 describe('operator-only wizard contract', () => {
   test('every hatch skill disables model invocation', () => {
-    const hatchSkills = [...pluginSlugs(), 'claude-code-hermit']
+    const hatchSkills = [...pluginSlugs(), 'hermitd']
       .map((slug) => path.join(PLUGINS_DIR, slug, 'skills', 'hatch', 'SKILL.md'))
       .filter((file) => fs.existsSync(file));
 

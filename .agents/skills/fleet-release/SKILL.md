@@ -48,7 +48,7 @@ If condition 1 holds but condition 2 does not (branch changes but version not bu
 ### 3. Determine release order
 
 Rule — not a graph:
-1. `claude-code-hermit` goes first if present
+1. `hermitd` goes first if present
 2. Remaining plugins in the order the operator specified, or alphabetical for auto-detect
 
 ### 4. Determine version bumps and confirm upfront
@@ -61,11 +61,11 @@ Present the full plan at once before touching any file:
 
 ```
 Release plan:
-  claude-code-hermit       1.0.22 → 1.0.23  (patch)
-  claude-code-dev-hermit   already prepped at 0.2.2
+  hermitd       1.0.22 → 1.0.23  (patch)
+  hermitd-dev   already prepped at 0.2.2
 
 Dep sync after core prep:
-  claude-code-dev-hermit   required_core_version: >=1.0.22 → >=1.0.23
+  hermitd-dev   required_core_version: >=1.0.22 → >=1.0.23
 
 Confirm? [Yes / Adjust versions]
 ```
@@ -76,7 +76,7 @@ With `--dry-run`: stop here. Print the plan and exit without touching anything.
 
 ### 5. Run `/release` for core (if in fleet)
 
-Invoke the full `/release claude-code-hermit` skill logic through the commit step, then:
+Invoke the full `/release hermitd` skill logic through the commit step, then:
 
 ```bash
 git push origin main
@@ -89,7 +89,7 @@ Then run tag and push (`claude plugin tag --push`) and `gh release create`. The 
 Immediately after core's release commit and tag, before any domain plugin runs:
 
 ```bash
-NEW_CORE=$(jq -r .version plugins/claude-code-hermit/.claude-plugin/plugin.json)
+NEW_CORE=$(jq -r .version plugins/hermitd/.claude-plugin/plugin.json)
 ```
 
 For each domain plugin **in the fleet** that has `plugins/<slug>/.claude-plugin/hermit-meta.json`:
@@ -97,7 +97,7 @@ For each domain plugin **in the fleet** that has `plugins/<slug>/.claude-plugin/
 ```bash
 jq --arg v ">=$NEW_CORE" '
   .required_core_version = $v |
-  .requires["claude-code-hermit"] = $v
+  .requires["hermitd"] = $v
 ' plugins/<slug>/.claude-plugin/hermit-meta.json > tmp && mv tmp plugins/<slug>/.claude-plugin/hermit-meta.json
 ```
 
@@ -119,6 +119,6 @@ Then tag and push (`claude plugin tag --push`) and `gh release create`. Always p
 
 ```
 Fleet release complete:
-  claude-code-hermit      v1.0.23  (commit abc1234, tag claude-code-hermit--v1.0.23)
-  claude-code-dev-hermit  v0.2.3   (commit def5678, tag claude-code-dev-hermit--v0.2.3)
+  hermitd      v1.0.23  (commit abc1234, tag hermitd--v1.0.23)
+  hermitd-dev  v0.2.3   (commit def5678, tag hermitd-dev--v0.2.3)
 ```

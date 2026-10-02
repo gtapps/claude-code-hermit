@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-hermit-monorepo",
+  "name": "hermitd-monorepo",
   "private": true,
   "description": "Dev-only toolchain for the hermit plugin monorepo. Shipped plugins have zero runtime dependencies — bun runs their .ts sources directly; these devDependencies exist solely for `bunx tsc --noEmit` typechecking and test-only fuzzing.",
   "scripts": {

@@ -77,14 +77,14 @@ Compare that set against the IDs in the verdict lines. For any ID with no verdic
 
 Skip this entire step under `--no-apply`.
 
-For each `SHIPPED-STRONG` verdict, resolve the ID to a filename, then close it the same way `/claude-code-hermit:proposal-act` does — the metrics event goes first so the summary regen reflects it:
+For each `SHIPPED-STRONG` verdict, resolve the ID to a filename, then close it the same way `/hermitd:proposal-act` does — the metrics event goes first so the summary regen reflects it:
 
 ```bash
-bun plugins/claude-code-hermit/scripts/proposal.ts resolve-id .claude-code-hermit "<PROP-ID>"
+bun plugins/hermitd/scripts/proposal.ts resolve-id .hermit "<PROP-ID>"
 
-bun plugins/claude-code-hermit/scripts/proposal.ts event .claude-code-hermit resolved --id="<PROP-ID>"
+bun plugins/hermitd/scripts/proposal.ts event .hermit resolved --id="<PROP-ID>"
 
-bun plugins/claude-code-hermit/scripts/proposal.ts patch .claude-code-hermit <filename> \
+bun plugins/hermitd/scripts/proposal.ts patch .hermit <filename> \
     --set status=resolved --set resolved_date=@now --request-compact --stdin <<'HERMIT_PATCH'
 Decision: Resolved on @now — shipped in <plugin> <version>. <evidence sentence>
 HERMIT_PATCH
@@ -98,7 +98,7 @@ Writing the evidence into the Decision line is what makes an automatic flip audi
 
 Present `SHIPPED-WEAK` and `AGED` together in one `AskUserQuestion` round, weak matches first (they carry evidence; aged ones carry only silence). Offer per group: resolve them, dismiss them, defer them, or leave them open. Where a group's members clearly want different answers, ask about them separately rather than forcing one verdict onto all.
 
-Apply confirmed answers with the same `proposal.ts patch` call, following `/claude-code-hermit:proposal-act`'s flow for whichever status the operator picked rather than improvising the fields — the flows differ in ways that are easy to get wrong:
+Apply confirmed answers with the same `proposal.ts patch` call, following `/hermitd:proposal-act`'s flow for whichever status the operator picked rather than improvising the fields — the flows differ in ways that are easy to get wrong:
 
 - **dismiss** — `--set status=dismissed --set dismissed_date=@now --set resolved_date=@now`. A dismissal is also a *first response*: if the proposal's `responded` field is still `false`, fire a `{"type":"responded","action":"dismiss"}` metrics event before the patch and add `--set responded=true` to it, or the proposal never counts as answered.
 - **defer** — no date fields.
@@ -108,7 +108,7 @@ Say what the operator chose, and their reason, in the Decision line. If a dismis
 
 ## Step 5 — Refresh the artifact pages
 
-Skip if Step 3 resolved nothing and Step 4 changed nothing (queue is unchanged). Otherwise, refresh the dashboard and the proposals page (`config.artifacts.proposals`) per `plugins/claude-code-hermit/docs/artifacts.md` — both silently, no URL re-post.
+Skip if Step 3 resolved nothing and Step 4 changed nothing (queue is unchanged). Otherwise, refresh the dashboard and the proposals page (`config.artifacts.proposals`) per `plugins/hermitd/docs/artifacts.md` — both silently, no URL re-post.
 
 ## Step 6 — Report
 
@@ -116,7 +116,7 @@ Skip if Step 3 resolved nothing and Step 4 changed nothing (queue is unchanged).
 Proposal queue: <N> open → <M> open
 
 Resolved automatically (<n>)
-  PROP-056 — shipped in claude-code-hermit [Unreleased]: proposal.ts replaces Write/Edit state writes
+  PROP-056 — shipped in hermitd [Unreleased]: proposal.ts replaces Write/Edit state writes
 
 Confirmed with you (<n>)
   PROP-006 — dismissed
