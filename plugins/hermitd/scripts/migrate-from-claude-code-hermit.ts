@@ -35,7 +35,8 @@ function migrateBlocks(text: string): string {
     let replacement = block.replace(marker, marker.replace(old, next))
       .replace(closingMarkerFor(marker), closingMarkerFor(marker).replace(old, next));
     for (const [source, dest] of Object.entries(HERMITD_IDS)) replacement = replacement.replaceAll(`/${source}:`, `/${dest}:`);
-    replacement = replacement.replaceAll('.claude-code-hermit/bin/hermit-run', '.hermit/bin/hermitd-run');
+    replacement = replacement.replaceAll('.claude-code-hermit/bin/hermit-run', '.hermit/bin/hermitd-run')
+      .replaceAll('.claude-code-hermit', '.hermit');
     text = text.replace(block, () => replacement);
   }
   return text;
@@ -52,8 +53,9 @@ export function migrateProject(project: string): string[] {
   // still resolves the recorded hatch choice and the final filename.
   const local = read(path.join(project, 'CLAUDE.local.md')) ?? '';
   const fallback = local.includes('<!-- claude-code-hermit:') ? 'local' : 'committed';
-  const target = readTargetState(state, { core_scope: null, target: fallback }, project);
-  for (const file of [path.join(project, targetFile(target.target ?? target.target_default)), path.join(state, 'RESIDENT.md')]) {
+  const targetState = readTargetState(state, { core_scope: null, target: fallback }, project);
+  const target = targetState.target ?? targetState.target_default;
+  for (const file of [path.join(project, targetFile(target)), path.join(state, 'RESIDENT.md')]) {
     const text = read(file);
     if (text !== null) writeChanged(file, migrateBlocks(text));
   }
@@ -131,7 +133,27 @@ export function migrateProject(project: string): string[] {
     if (fs.existsSync(oldPristine)) fs.unlinkSync(oldPristine);
   }
   writeChanged(manifestFile, JSON.stringify(seeded, null, 2) + '\n');
-  command(project, 'apply-settings.ts', [path.join(project, '.claude/settings.json'), 'permissions-sync']);
+  // Seeded deny/ask rules are operator-owned and never re-applied by sync, so
+  // follow the state-directory move here or they stop protecting anything.
+  for (const name of ['settings.json', 'settings.local.json']) {
+    const file = path.join(project, '.claude', name);
+    const text = read(file);
+    if (text === null) continue;
+    const settings = JSON.parse(text);
+    let changed = false;
+    for (const key of ['deny', 'ask']) {
+      const rules = settings.permissions?.[key];
+      if (!Array.isArray(rules)) continue;
+      settings.permissions[key] = rules.map((rule: unknown) => {
+        if (typeof rule !== 'string' || !rule.includes('.claude-code-hermit/')) return rule;
+        changed = true;
+        return rule.replaceAll('.claude-code-hermit/', '.hermit/');
+      });
+    }
+    if (changed) writeChanged(file, JSON.stringify(settings, null, 2) + '\n');
+  }
+  const settingsFile = target === 'local' ? '.claude/settings.local.json' : '.claude/settings.json';
+  command(project, 'apply-settings.ts', [path.join(project, settingsFile), 'permissions-sync']);
   return report;
 }
 

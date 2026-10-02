@@ -15,10 +15,11 @@ function fixture() {
   write(path.join(state, 'state/hatch-options.json'), JSON.stringify({ target: 'local' }));
   write(path.join(state, 'state/template-manifest.json'), JSON.stringify({ version: 1, files: { 'bin/hermit-run': { sha256: sha256('original'), plugin_version: '1.4.8' } } }));
   write(path.join(state, 'bin/hermit-run'), 'customized wrapper');
-  const blocks = 'Operator /claude-code-hermit:untouched\n<!-- claude-code-hermit: Session Discipline -->\n/claude-code-hermit:resident-start .claude-code-hermit/bin/hermit-run task list\n<!-- /claude-code-hermit: Session Discipline -->\n<!-- claude-code-dev-hermit: Dev -->\n/claude-code-dev-hermit:hatch\n<!-- /claude-code-dev-hermit: Dev -->\n';
+  const blocks = 'Operator /claude-code-hermit:untouched\n<!-- claude-code-hermit: Session Discipline -->\n/claude-code-hermit:resident-start .claude-code-hermit/bin/hermit-run task list .claude-code-hermit\n<!-- /claude-code-hermit: Session Discipline -->\n<!-- claude-code-dev-hermit: Dev -->\n/claude-code-dev-hermit:hatch\n<!-- /claude-code-dev-hermit: Dev -->\n';
   write(path.join(root, 'CLAUDE.local.md'), blocks);
   write(path.join(state, 'RESIDENT.md'), blocks);
   write(path.join(root, '.claude/agent-memory/claude-code-hermit-proposal-triage/MEMORY.md'), 'memory');
+  write(path.join(root, '.claude/settings.local.json'), JSON.stringify({ permissions: { allow: ['Edit(.claude-code-hermit/**)'], deny: ['Edit(*.claude-code-hermit/tasks/**)'], ask: ['Edit(*.claude-code-hermit/config.json)', 'Bash(ssh *)'] } }));
   write(path.join(state, 'state/hypotheses.jsonl'), JSON.stringify({ id: 'later-1', state: 'pending', cmd: '.claude-code-hermit/bin/hermit-run status' }) + '\n');
   return { root, state, blocks };
 }
@@ -41,7 +42,7 @@ test('1.4.8 local and resident blocks, customized wrapper, memory, ledger, and n
     expect(text).toContain('Operator /claude-code-hermit:untouched');
     expect(text).toContain('<!-- hermitd: Session Discipline -->');
     expect(text).toContain('<!-- /hermitd: Session Discipline -->');
-    expect(text).toContain('/hermitd:resident-start .hermit/bin/hermitd-run');
+    expect(text).toContain('/hermitd:resident-start .hermit/bin/hermitd-run task list .hermit\n');
     expect(text).toContain('<!-- /hermitd-dev: Dev -->');
   }
   expect(fs.readFileSync(path.join(f.state, 'bin/hermit-run.bak'), 'utf8')).toBe('customized wrapper');
@@ -50,6 +51,12 @@ test('1.4.8 local and resident blocks, customized wrapper, memory, ledger, and n
   expect(Object.keys(manifest.files).every(key => key.startsWith('bin/hermitd-'))).toBe(true);
   expect(fs.readFileSync(path.join(f.root, '.claude/agent-memory/hermitd-proposal-triage/MEMORY.md'), 'utf8')).toBe('memory');
   expect(fs.readFileSync(path.join(f.state, 'state/hypotheses.jsonl'), 'utf8')).toBe(ledger);
+  const settings = JSON.parse(fs.readFileSync(path.join(f.root, '.claude/settings.local.json'), 'utf8'));
+  expect(settings.permissions.allow).toContain('Edit(.hermit/**)');
+  expect(settings.permissions.allow).not.toContain('Edit(.claude-code-hermit/**)');
+  expect(settings.permissions.deny).toEqual(['Edit(*.hermit/tasks/**)']);
+  expect(settings.permissions.ask).toEqual(['Edit(*.hermit/config.json)', 'Bash(ssh *)']);
+  expect(fs.existsSync(path.join(f.root, '.claude/settings.json'))).toBe(false);
   const before = snapshot(f.root);
   migrateProject(f.root);
   expect(snapshot(f.root)).toEqual(before);

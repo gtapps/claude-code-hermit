@@ -753,7 +753,7 @@ describe('migrate hermitd', () => {
       shutdown_skill: 'claude-code-dev-hermit:finish',
       routines: [{ id: 'custom', schedule: '0 9 * * *', skill: '/feed-hermit:brief', enabled: false }],
       scheduled_checks: [{ plugin: 'claude-code-fitness-hermit', skill: 'hermit-scribe:hermit-scribe' }],
-      docker: { recommended_plugins: [{ plugin: 'laravel-forge-hermit', reason: 'operator' }, { plugin: 'custom' }] },
+      docker: { recommended_plugins: [{ plugin: 'laravel-forge-hermit', marketplace: 'gtapps/claude-code-hermit', reason: 'operator' }, { plugin: 'custom' }] },
       'claude-code-dev-hermit': { custom: 'claude-code-hermit' },
       agent_name: 'Preserved',
     });
@@ -766,7 +766,7 @@ describe('migrate hermitd', () => {
     expect(config.shutdown_skill).toBe('hermitd-dev:finish');
     expect(config.routines[0].skill).toBe('/hermitd-feed:brief');
     expect(config.scheduled_checks).toEqual([{ plugin: 'hermitd-fitness', skill: 'hermitd-scribe:hermit-scribe' }]);
-    expect(config.docker.recommended_plugins).toEqual([{ plugin: 'hermitd-laravel-forge', reason: 'operator' }, { plugin: 'custom' }]);
+    expect(config.docker.recommended_plugins).toEqual([{ plugin: 'hermitd-laravel-forge', marketplace: 'gtapps/hermitd', reason: 'operator' }, { plugin: 'custom' }]);
     expect(config['hermitd-dev']).toEqual({ custom: 'claude-code-hermit' });
     expect(config['claude-code-dev-hermit']).toBeUndefined();
     expect(config.agent_name).toBe('Preserved');

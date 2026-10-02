@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time migration of every registered 1.4.8 agent in one Claude config dir.
 set -euo pipefail
-for tool in bun jq claude; do
+for tool in bun claude; do
   command -v "$tool" >/dev/null || { echo "Required command missing: $tool" >&2; exit 1; }
 done
 export BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
@@ -83,7 +83,7 @@ async function locked(project, root, action) {
   try { await action(); }
   finally { releaseLock(path.join(state(project), 'state/.lifecycle.lock')); }
 }
-function swap(record, file) {
+function swap(record) {
   // Inspect actual state on every retry: remove/add/install can succeed and
   // still lose their acknowledgement or the following inventory write.
   let markets = marketplaces();
@@ -95,8 +95,6 @@ function swap(record, file) {
     const found = pluginList(cwd).some(current => current.id === newId(row.id) && current.scope === row.scope && (row.scope === 'user' || current.projectPath === row.projectPath));
     if (!found) run('claude', ['plugin', 'install', newId(row.id), '--scope', row.scope], cwd);
   }
-  record.swapped = true;
-  save(file, record);
 }
 function moveAndHelp(project, root) {
   const old = path.join(project, '.claude-code-hermit');
@@ -109,17 +107,14 @@ function moveAndHelp(project, root) {
 }
 async function containerMain() {
   const project = process.cwd();
-  let file = path.join(state(project), 'state/hermitd-inventory.json');
-  const record = json(file);
+  const record = json(path.join(state(project), 'state/hermitd-inventory.json'));
   const root = core(pluginList(project), project)?.installPath ?? core(record.installs, project)?.installPath;
   if (!root) throw new Error('Container core install is missing');
   await locked(project, root, async () => {
-    swap(record, file);
+    swap(record);
     const installed = core(pluginList(project), project);
     if (!installed || installed.id !== 'hermitd@hermitd') throw new Error('New container core install is missing');
     moveAndHelp(project, installed.installPath);
-    file = path.join(state(project), 'state/hermitd-inventory.json');
-    record.helperDone = true; save(file, record);
   });
 }
 async function main() {
@@ -128,9 +123,12 @@ async function main() {
   else {
     const rows = pluginList();
     const registry = path.join(configDir, 'plugins/data/claude-code-hermit-claude-code-hermit/instances.json');
-    const registered = fs.existsSync(registry) ? JSON.parse(run('jq', ['-c', '.', registry])) : [];
+    const registered = json(registry, []);
     const currentRegistry = json(path.join(configDir, 'plugins/data/hermitd-hermitd/instances.json'), []);
-    const projects = [...new Set([...registered, ...currentRegistry].map(row => row.project_dir).concat(rows.filter(row => ids[row.id.split('@')[0]] && row.projectPath).map(row => row.projectPath)))];
+    const candidates = [...new Set([...registered, ...currentRegistry].map(row => row.project_dir).concat(rows.filter(row => ids[row.id.split('@')[0]] && row.projectPath).map(row => row.projectPath)))];
+    // The registry keeps missing projects until pruned, and an install can predate hatch.
+    const projects = candidates.filter(project => fs.existsSync(path.join(state(project), 'config.json')));
+    for (const project of candidates.filter(project => !projects.includes(project))) console.log(`Skipped (no agent state): ${project}`);
     if (!projects.length) throw new Error('No registered agents found in this Claude config dir');
     if (projects.every(done)) { console.log('Already migrated: every registered project has its completion stamp.'); return; }
     inventory = { version: 1, projects: [], installs: installs(rows, projects), hadMarketplace: hasMarketplace(marketplaces(), 'claude-code-hermit') };
@@ -165,9 +163,11 @@ async function main() {
     await stopped(row.project, row.mode);
     console.log(inContainer(row.project, `bun -e ${quote(process.env.HERMITD_MIGRATION_SOURCE)} -- --container`));
     compose(row.project, ['build']);
+    // A rerun before the stamp recreates the slice from the host inventory.
+    fs.rmSync(path.join(state(row.project), 'state/hermitd-inventory.json'), { force: true });
     fs.writeFileSync(stamp(row.project), 'hermitd\n');
   }
-  if (inventory.hadMarketplace) swap(inventory, inventoryFile);
+  if (inventory.hadMarketplace) swap(inventory);
   let hostCore = core(pluginList());
   if (hostCore?.id !== 'hermitd@hermitd') hostCore = null;
   for (const row of inventory.projects.filter(row => row.mode === 'tmux' && !done(row.project))) {

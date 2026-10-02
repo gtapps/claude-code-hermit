@@ -41,6 +41,9 @@ import subprocess
 excluded = {
     'scripts/hermitd-rename-pass.sh', 'scripts/migrate.sh',
     'tests/lib/migrate.test.ts', '.gitignore', '.worktreeinclude',
+    # Hand-written migration content: old names are intentional, a rerun after merging main must leave them.
+    'README.md', 'plugins/hermitd/scripts/settings-edit.ts', 'plugins/hermitd/tests/settings-edit.test.ts',
+    'plugins/hermitd-homeassistant/tests/gate-corpus.test.ts',
 }
 names = {
     'claude-code-dev-hermit': 'hermitd-dev',
@@ -57,7 +60,8 @@ for name in sorted(set(files)):
         or any(part in ('graphify-out', 'node_modules', 'vendor') for part in p.parts)
         or name.startswith('.claude-code-hermit/')
         or 'migrate-from-claude-code-hermit' in name
-        or name.endswith('/scripts/apply-settings.ts')):
+        or name.endswith('/scripts/apply-settings.ts')
+        or re.search(r'/tests/apply-settings[^/]*\.test\.ts$', name)):
         continue
     try:
         old = p.read_text()
@@ -88,7 +92,7 @@ for name in sorted(set(files)):
             ('claude-code-hermit', 'hermitd'),
         ):
             line = line.replace(source, target)
-        line = re.sub(r'hermit-(attach|docker|pause|run|start|status|stop|update|watchdog|cli|exec)(?![\w-]|@)', r'hermitd-\1', line)
+        line = re.sub(r'(?<!lib/)hermit-(attach|docker|pause|run|start|status|stop|update|watchdog|cli|exec)(?![\w-]|@)', r'hermitd-\1', line)
         line = line.replace('hermit-watchdog-install', 'hermitd-watchdog-install')
         line = re.sub(r'\bhermit (list|status|start|stop|restart|attach|update|prune|docker|pause|watchdog|run|install|register)\b', r'hermitd \1', line)
         lines.append(line)

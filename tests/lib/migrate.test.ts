@@ -89,6 +89,7 @@ function snapshot(root: string): Record<string, string> {
 }
 function complete(f: ReturnType<typeof fixture>) {
   for (const project of f.projects) expect(fs.existsSync(path.join(project, '.hermit/state/hermitd-migrated'))).toBe(true);
+  for (const project of f.projects) expect(fs.existsSync(path.join(project, '.hermit/state/hermitd-inventory.json'))).toBe(false);
   expect(fs.existsSync(path.join(f.config, 'hermitd-migration.json'))).toBe(false);
   const rows = JSON.parse(fs.readFileSync(path.join(f.config, 'plugins/data/hermitd-hermitd/instances.json'), 'utf8'));
   expect(rows.map((row: any) => row.project_dir).sort()).toEqual([...f.projects].sort());
@@ -102,6 +103,15 @@ test('all agents migrate, disabled installs are reported, foreign shim survives,
   const again = await f.run(); expect(again.exitCode).toBe(0); expect(again.stdout).toContain('Already migrated');
   fs.unlinkSync(path.join(f.projects[0], '.hermit/state/hermitd-migrated'));
   const incomplete = await f.run(); expect(incomplete.exitCode).toBe(1); expect(incomplete.stdout).not.toContain('Already migrated');
+});
+test('registry entries without agent state are skipped', async () => {
+  const f = fixture();
+  const registry = path.join(f.config, 'plugins/data/claude-code-hermit-claude-code-hermit/instances.json');
+  const gone = path.join(f.home, 'deleted-project');
+  write(registry, JSON.stringify([...JSON.parse(fs.readFileSync(registry, 'utf8')), { project_dir: gone, name: 'deleted-project' }]));
+  const result = await f.run();
+  expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
+  expect(result.stdout).toContain(`Skipped (no agent state): ${gone}`);
 });
 test('Docker-only host registers projects and reports missing host CLI', async () => {
   const f = fixture(true); const result = await f.run();

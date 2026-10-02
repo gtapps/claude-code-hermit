@@ -89,6 +89,7 @@ const migrations: Record<string, (config: Json) => void> = {
     }
     for (const row of config.docker?.recommended_plugins ?? []) {
       if (Object.hasOwn(row, 'plugin')) row.plugin = plugin(row.plugin);
+      if (row.marketplace === 'gtapps/claude-code-hermit') row.marketplace = 'gtapps/hermitd';
     }
     if (Object.hasOwn(config, 'claude-code-dev-hermit')) {
       if (Object.hasOwn(config, 'hermitd-dev') && JSON.stringify(config['hermitd-dev']) !== JSON.stringify(config['claude-code-dev-hermit'])) {
