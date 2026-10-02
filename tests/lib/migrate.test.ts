@@ -39,6 +39,7 @@ function fixture(dockerOnly = false) {
   const newCore = path.join(home, 'plugins/cache/hermitd/hermitd/1.4.8');
   fs.mkdirSync(path.dirname(newCore), { recursive: true }); fs.symlinkSync(core, newCore, 'dir');
   write(path.join(oldCore, 'scripts/lib/resident-liveness.ts'), `export { residentLiveness, REAL_LIVENESS_DEPS } from ${JSON.stringify(path.join(core, 'scripts/lib/resident-liveness.ts'))};`);
+  write(path.join(oldCore, 'scripts/lib/liveness.ts'), `export { LIVENESS_FRESH_SECS } from ${JSON.stringify(path.join(core, 'scripts/lib/liveness.ts'))};`);
   write(path.join(oldCore, 'scripts/lib/lockfile.ts'), `export { acquireLock, releaseLock } from ${JSON.stringify(path.join(core, 'scripts/lib/lockfile.ts'))};`);
   const projects = (dockerOnly ? ['docker'] : ['one', 'two', 'docker']).map(name => path.join(home, name));
   for (const project of projects) {
@@ -77,7 +78,7 @@ for(const method of ['renameSync','writeFileSync']){const original=fs[method].bi
     const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
     return { stdout, stderr, exitCode };
   }
-  return { home, config, projects, run, calls: () => fs.existsSync(env.CALLS) ? fs.readFileSync(env.CALLS, 'utf8') : '' };
+  return { home, config, projects, run, newCore, calls: () => fs.existsSync(env.CALLS) ? fs.readFileSync(env.CALLS, 'utf8') : '' };
 }
 function snapshot(root: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -118,6 +119,24 @@ test('Docker-only host registers projects and reports missing host CLI', async (
   expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
   expect(result.stdout).toContain('host CLI not installed; run the installer');
   expect(f.calls()).not.toContain('host:remove');
+});
+test('old marketplace removed by hand: new core installs stand in for the deleted registry', async () => {
+  const f = fixture();
+  fs.rmSync(path.join(f.config, 'plugins/data/claude-code-hermit-claude-code-hermit'), { recursive: true });
+  const installs = f.projects.map(projectPath => ({ id: 'hermitd@hermitd', scope: 'local', projectPath, enabled: true, installPath: f.newCore }));
+  write(path.join(f.config, 'stub.json'), JSON.stringify({ markets: ['hermitd'], installs }));
+  const result = await f.run();
+  expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0); complete(f);
+  expect(f.calls()).not.toContain('host:remove');
+});
+test('orphan refusal says when to rerun instead of naming a stop command', async () => {
+  const f = fixture();
+  write(path.join(f.projects[0], '.claude-code-hermit/state/runtime.json'), JSON.stringify({ runtime_mode: 'tmux' }));
+  write(path.join(f.projects[0], '.claude-code-hermit/state/.heartbeat'), 'now');
+  const result = await f.run();
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain('rerun in');
+  expect(result.stderr).not.toContain('Stop with');
 });
 for (const refusal of ['version', 'conflict', 'tmux', 'docker']) {
   test(`preflight ${refusal} refusal leaves files byte-identical`, async () => {

@@ -68,12 +68,14 @@ async function stopped(project, mode, root) {
     return;
   }
   if (!root) throw new Error(`No old core install for ${project}`);
-  const probe = `import fs from 'node:fs'; import path from 'node:path'; import { residentLiveness, REAL_LIVENESS_DEPS } from ${JSON.stringify(path.join(root, 'scripts/lib/resident-liveness.ts'))};
+  const probe = `import fs from 'node:fs'; import path from 'node:path'; import { residentLiveness, REAL_LIVENESS_DEPS } from ${JSON.stringify(path.join(root, 'scripts/lib/resident-liveness.ts'))}; import { LIVENESS_FRESH_SECS } from ${JSON.stringify(path.join(root, 'scripts/lib/liveness.ts'))};
     const dir=${JSON.stringify(state(project))}; const config=JSON.parse(fs.readFileSync(path.join(dir,'config.json'),'utf8'));
     let runtime=null; try { runtime=JSON.parse(fs.readFileSync(path.join(dir,'state/runtime.json'),'utf8')); } catch(e) { if(e.code!=='ENOENT') throw e; }
     const result=residentLiveness(runtime, runtime?.tmux_session || config.tmux_session_name || ${JSON.stringify('hermit-' + path.basename(project))}, REAL_LIVENESS_DEPS(dir));
-    console.log(result.state);`;
-  const verdict = run('bun', ['-e', probe], project);
+    console.log(JSON.stringify({ state: result.state, wait: Math.ceil(LIVENESS_FRESH_SECS - (result.evidence.livenessAgeSecs ?? 0)) }));`;
+  const { state: verdict, wait } = JSON.parse(run('bun', ['-e', probe], project));
+  // Orphan means fresh liveness files but no tmux session: usually a crashed resident whose files age out.
+  if (verdict === 'orphan') throw new Error(`Agent may still be running (orphan): no tmux session, but its liveness files changed recently. If no claude process is running for ${project}, rerun in ${wait}s.`);
   if (!['none', 'cleanly-stopped', 'dead'].includes(verdict)) throw new Error(`Agent running (${verdict}). Stop with: cd ${quote(project)} && ${state(project).endsWith('.hermit') ? '.hermit/bin/hermitd-stop' : '.claude-code-hermit/bin/hermit-stop'}`);
 }
 async function locked(project, root, action) {
@@ -125,11 +127,12 @@ async function main() {
     const registry = path.join(configDir, 'plugins/data/claude-code-hermit-claude-code-hermit/instances.json');
     const registered = json(registry, []);
     const currentRegistry = json(path.join(configDir, 'plugins/data/hermitd-hermitd/instances.json'), []);
-    const candidates = [...new Set([...registered, ...currentRegistry].map(row => row.project_dir).concat(rows.filter(row => ids[row.id.split('@')[0]] && row.projectPath).map(row => row.projectPath)))];
+    const candidates = [...new Set([...registered, ...currentRegistry].map(row => row.project_dir).concat(rows.filter(row => (ids[row.id.split('@')[0]] || row.id === 'hermitd@hermitd') && row.projectPath).map(row => row.projectPath)))];
     // The registry keeps missing projects until pruned, and an install can predate hatch.
+    // Removing the old marketplace by hand deletes its registry, so new core installs count too.
     const projects = candidates.filter(project => fs.existsSync(path.join(state(project), 'config.json')));
     for (const project of candidates.filter(project => !projects.includes(project))) console.log(`Skipped (no agent state): ${project}`);
-    if (!projects.length) throw new Error('No registered agents found in this Claude config dir');
+    if (!projects.length) throw new Error('No registered agents found in this Claude config dir. If you removed the claude-code-hermit marketplace by hand, run `claude plugin marketplace add gtapps/hermitd`, then `claude plugin install hermitd@hermitd --scope local` in each agent project.');
     if (projects.every(done)) { console.log('Already migrated: every registered project has its completion stamp.'); return; }
     inventory = { version: 1, projects: [], installs: installs(rows, projects), hadMarketplace: hasMarketplace(marketplaces(), 'claude-code-hermit') };
     for (const project of projects) {
