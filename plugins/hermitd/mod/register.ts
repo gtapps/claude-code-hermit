@@ -177,7 +177,10 @@ export const register: Register = on => {
     const command = active.command.command;
     if (command === '/compact') return result;
     const observed = stdout[1];
-    active.evidence = { status: classifyStdout(command, observed), text: observed };
+    const status = classifyStdout(command, observed);
+    // A cleared context is reported from classic.SessionStart, once the resident id is current.
+    if (command === '/clear' && status === 'ok') return result;
+    active.evidence = { status, text: observed };
     observe($);
     return result;
   });
@@ -197,14 +200,16 @@ export const register: Register = on => {
     return result;
   });
 
-  on('session.end', async ($, e, next) => {
+  // A /clear changes the session id without another session.start. The plugin's own
+  // SessionStart command hook restamps the resident id; next(e) resolves after it, while
+  // session.end and $.command.run resolve before it starts.
+  on('classic.SessionStart', async ($, e, next) => {
     const result = await next(e);
-    if (e.reason === 'clear') {
+    if (e.source === 'clear') {
       if (active?.command.command === '/clear') {
         active.evidence = { status: 'ok', text: 'Context cleared' };
         observe($);
       }
-      // The id changes after this hook returns, without another session.start.
       $.clock.after(0, () => bridge($, 'loaded'));
     }
     return result;

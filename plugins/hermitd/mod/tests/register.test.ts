@@ -136,6 +136,7 @@ test('session start and clear record the current session id', async ($, on) => {
   on('session.id', () => ({ value: id }));
   on('session.start', () => ({ cwd: '/work' }));
   on('session.end', () => ({ sessionId: 'old' }));
+  on('classic.SessionStart', () => ({}));
   on('process.run', ($, e) => {
     if (e.argv[3] === 'loaded') loaded.push(e.argv[4]);
     return { value: { exitCode: 0, stdout: '{"decision":"ok"}', stderr: '' } };
@@ -143,6 +144,9 @@ test('session start and clear record the current session id', async ($, on) => {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' });
   await $.session.end({ reason: 'clear', sessionId: 'old' });
   id = 'new';
+  await clock.settle();
+  expect(loaded).toEqual(['old']);
+  await $.classic.SessionStart({ source: 'clear' });
   await clock.settle();
   expect(loaded).toEqual(['old', 'new']);
 });
@@ -174,11 +178,18 @@ for (const command of ['/compact', '/clear']) {
     on('command.run', () => ({}));
     on('session.compact', () => ({ messages: [{ role: 'user', text: 'summary', toolUses: [] }], tokensBefore: 100, tokensAfter: 10, usage: { input_tokens: 100, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }));
     on('session.end', () => ({ sessionId: 'resident' }));
+    on('classic.SessionStart', () => ({}));
     await $.prompt.submit(channel('!' + command.slice(1)));
     await clock.settle();
     expect(finalized).toEqual([]);
     if (command === '/compact') await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'summary', toolUses: [] }] });
-    else await $.session.end({ reason: 'clear', sessionId: 'resident' });
+    else {
+      // The id is restamped by the SessionStart command hook, after session.end.
+      await $.session.end({ reason: 'clear', sessionId: 'resident' });
+      await clock.settle();
+      expect(finalized).toEqual([]);
+      await $.classic.SessionStart({ source: 'clear' });
+    }
     await clock.settle();
     expect(finalized[0].outcomes[0].status).toBe('ok');
   });
