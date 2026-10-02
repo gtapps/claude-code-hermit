@@ -140,9 +140,11 @@ async function main() {
     inventory = { version: 1, projects: [], installs: installs(rows, projects), hadMarketplace: hasMarketplace(marketplaces(), 'claude-code-hermit') };
     for (const project of projects) {
       if (fs.existsSync(path.join(project, '.claude-code-hermit')) && fs.existsSync(path.join(project, '.hermit')) && !done(project)) throw new Error(`Both state directories exist: ${project}`);
-      const config = json(path.join(state(project), 'config.json'));
-      if (!done(project) && config._hermit_versions?.['claude-code-hermit'] !== '1.4.8') throw new Error(`Requires core 1.4.8: ${project}`);
       const mode = fs.existsSync(path.join(project, 'docker-compose.hermit.yml')) ? 'docker' : 'tmux';
+      // A project finished in an earlier run may be running again on the new core.
+      if (done(project)) { inventory.projects.push({ project, mode, watchdog: false, installs: [] }); continue; }
+      const config = json(path.join(state(project), 'config.json'));
+      if (config._hermit_versions?.['claude-code-hermit'] !== '1.4.8') throw new Error(`Requires core 1.4.8: ${project}`);
       if (mode === 'docker' && !Bun.which('docker')) throw new Error('Required command missing: docker');
       const oldRoot = core(rows, project)?.installPath;
       await stopped(project, mode, oldRoot);

@@ -137,6 +137,19 @@ test('old marketplace removed by hand: new core installs stand in for the delete
   expect(f.calls()).not.toContain('host:remove');
   expect(result.stdout).toContain('Plugins: none reinstalled, the old marketplace was already removed.');
 });
+test('an agent found after others migrated is migrated without rechecking them', async () => {
+  const f = fixture(true);
+  expect((await f.run()).exitCode).toBe(0);
+  const late = path.join(f.home, 'late');
+  write(path.join(late, '.claude-code-hermit/config.json'), JSON.stringify({ agent_name: 'late', _hermit_versions: { 'claude-code-hermit': '1.4.8' } }));
+  write(path.join(late, '.claude-code-hermit/state/runtime.json'), JSON.stringify({ runtime_mode: 'tmux', shutdown_completed_at: '2026-10-02' }));
+  const stub = path.join(f.config, 'stub.json');
+  write(stub, JSON.stringify({ markets: ['hermitd'], installs: [{ id: 'hermitd@hermitd', scope: 'local', projectPath: late, enabled: true, installPath: f.newCore }] }));
+  const result = await f.run({ RUNNING: 'docker' });
+  expect(result.stderr).toBe(''); expect(result.exitCode).toBe(0);
+  expect(fs.existsSync(path.join(late, '.hermit/state/hermitd-migrated'))).toBe(true);
+  expect(result.stdout).toContain('(details printed in an earlier run)');
+});
 test('orphan refusal says when to rerun instead of naming a stop command', async () => {
   const f = fixture();
   write(path.join(f.projects[0], '.claude-code-hermit/state/runtime.json'), JSON.stringify({ runtime_mode: 'tmux' }));
