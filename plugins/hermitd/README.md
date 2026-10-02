@@ -233,7 +233,7 @@ Optional plugins that add domain tools and workflows to your agent.
 - [fitness-hermit](../hermitd-fitness/README.md): Strava integration, activity analysis, and training routines.
 - [hermitd-feed](../hermitd-feed/README.md): Source curation, recurring briefs, and weekly synthesis.
 - [hermitd-laravel-forge](../hermitd-laravel-forge/README.md): Laravel Forge deployments, logs, and server management.
-- [hermit-scribe](../hermit-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
+- [hermitd-scribe](../hermitd-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
 
 You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
@@ -244,6 +244,18 @@ You can run separate agents for different responsibilities, each with its own wo
 **Sign-in renewal from chat.** When your agent’s Claude sign-in needs renewing, use `/relogin` from your connected chat. Open the link in your browser, sign in, and send the code back in chat.
 
 **Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
+
+## Upgrading from claude-code-hermit
+
+Before migrating, update every registered agent in the Claude config directory to core **1.4.8** and stop all of them, including Docker agents. Run once on the host:
+
+```bash
+curl -fsSL https://gtapps.github.io/hermitd/migrate.sh | bash
+```
+
+The migration records every agent before replacing the marketplace, moves project state to `.hermit/`, refreshes launchers and permissions, and rebuilds Docker images. Customized managed files receive `.bak` copies. If interrupted, rerun the same command to resume. Disabled plugin installs are reported and are not reinstalled.
+
+Follow the printed start command for each agent, then run `/hermitd:hermit-evolve`. Pending `later` commands that still use old paths are reported for re-arming.
 
 ## Upgrading
 

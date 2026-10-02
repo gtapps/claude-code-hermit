@@ -105,7 +105,7 @@ It applies a `docker-compose.security.yml` overlay that the `hermitd-docker` wra
 | Resource bounds + sysctls | `mem_limit`, `cpus`, ICMP-redirect / source-route hardening | Network sysctls auto-skip when `network_mode: host` |
 | Plugin install audit log | One JSONL line per boot-time `claude plugin install` to `state/plugin-installs.jsonl` | Post-boot installs run via tmux are not captured |
 
-The wizard is fleet-aware: it scans installed `*-hermit` plugins for a `## Docker network requirements` section and offers their domains and LAN suggestions for per-entry confirmation. The LAN containment toggle is **hard-skipped** when `docker.network_mode: "host"` — host mode and bridge-based netns sharing are mutually exclusive.
+The wizard is fleet-aware: it scans installed sibling plugins whose names contain `hermit` (for example `hermitd-homeassistant` and `hermitd-fitness`) for a `## Docker network requirements` section and offers their domains and LAN suggestions for per-entry confirmation. The LAN containment toggle is **hard-skipped** when `docker.network_mode: "host"` — host mode and bridge-based netns sharing are mutually exclusive.
 
 Reverse anytime: re-run `/docker-security` and answer No to every prompt, or `rm docker-compose.security.yml` and `hermitd-docker up`. See [Security](security.md#advanced-hardening--docker-security) for the deeper treatment of what each toggle protects against and the documented limitations.
 

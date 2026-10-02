@@ -172,7 +172,7 @@ your-project/
 │   │   ├── channel-health.json       # Advisory channel send-liveness (channel-send-owned)
 │   │   ├── operator-turn-open.json   # Transient "an operator turn is in flight" marker (opened on operator prompts, cleared at Stop)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
-│   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
+│   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermitd-start-owned)
 │   ├── bin/hermitd-start, hermitd-stop
 │   ├── config.json
 │   ├── OPERATOR.md           # Human-curated context — never edit autonomously; always confirm changes

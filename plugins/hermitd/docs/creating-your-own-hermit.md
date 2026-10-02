@@ -127,7 +127,7 @@ When you're copying the same agents between projects, package them as a [Claude 
 
 ### Naming
 
-`claude-code-{domain}-hermit`. Examples: `claude-code-data-hermit`, `claude-code-infra-hermit`.
+`hermitd-{domain}`. Examples: `hermitd-data`, `hermitd-infra`.
 
 ### How it layers on core
 
@@ -149,7 +149,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 
 Only needed if your hermit has setup steps beyond what core's `/hermitd:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering routines). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
 
-Name the skill simply `hatch` — the plugin namespace already disambiguates it from core's hatch (`/claude-code-your-domain-hermit:hatch` vs `/hermitd:hatch`).
+Name the skill simply `hatch` — the plugin namespace already disambiguates it from core's hatch (`/hermitd-your-domain:hatch` vs `/hermitd:hatch`).
 
 ```markdown
 ---

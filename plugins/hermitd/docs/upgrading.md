@@ -4,6 +4,18 @@ Hermit is backwards compatible — nothing breaks if you don't upgrade. But upgr
 
 ---
 
+## Upgrading from claude-code-hermit
+
+Before migrating, update every registered agent in the Claude config directory to core **1.4.8** and stop all of them, including Docker agents. Run once on the host:
+
+```bash
+curl -fsSL https://gtapps.github.io/hermitd/migrate.sh | bash
+```
+
+The migration records every agent before replacing the marketplace, moves project state to `.hermit/`, refreshes launchers and permissions, and rebuilds Docker images. Customized managed files receive `.bak` copies. If interrupted, rerun the same command to resume. Disabled plugin installs are reported and are not reinstalled.
+
+Follow the printed start command for each agent, then run `/hermitd:hermit-evolve`. Pending `later` commands that still use old paths are reported for re-arming.
+
 ## Core Plugin
 
 ### One command (recommended)

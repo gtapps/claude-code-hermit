@@ -22,7 +22,7 @@ You reply with one of three things:
 - **Later** — good idea, but not now. It'll wait.
 - **No** — skip it.
 
-That's it. No forms, no IDs to type, no special phrasing. Plain "yes" works.
+That's it. When one suggestion is open, plain "yes", "later", or "no" is enough. When several are open, reply with the suggestion number.
 
 ---
 
