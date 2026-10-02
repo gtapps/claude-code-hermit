@@ -69,7 +69,7 @@ for name in sorted(set(files)):
         continue
     lines = []
     for line in old.splitlines(keepends=True):
-        if name == 'CLAUDE.md' and 'Old standalone' in line:
+        if (name == 'CLAUDE.md' and 'Old standalone' in line) or 'migrate-from-claude-code-hermit' in line:
             lines.append(line)
             continue
         for source, target in names.items():
